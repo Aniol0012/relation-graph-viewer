@@ -36,7 +36,10 @@ const defaultSettings = {
     animatedEdges: false,
     
     // Theme
-    theme: 'dark'
+    theme: 'dark',
+    
+    // Details panel width
+    detailsPanelWidth: 380
 };
 
 export const useApp = () => {
@@ -51,18 +54,22 @@ export const AppProvider = ({ children }) => {
     // React Flow instance ref
     const reactFlowInstance = useRef(null);
     
-    // Settings state
+    // Settings state - load safely
     const [settings, setSettings] = useState(() => {
         try {
             const saved = localStorage.getItem('dbgraph_settings');
             if (saved) {
                 const parsed = JSON.parse(saved);
-                return { ...defaultSettings, ...parsed, joinColors: { ...defaultSettings.joinColors, ...parsed.joinColors } };
+                return { 
+                    ...defaultSettings, 
+                    ...parsed, 
+                    joinColors: { ...defaultSettings.joinColors, ...(parsed.joinColors || {}) } 
+                };
             }
         } catch (e) {
-            console.error('Error loading settings:', e);
+            console.warn('Error loading settings:', e);
         }
-        return defaultSettings;
+        return { ...defaultSettings };
     });
 
     // Original imported data (to track what's new)
@@ -92,6 +99,11 @@ export const AppProvider = ({ children }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [stats, setStats] = useState({ views_count: 0, relations_count: 0 });
     
+    // Filter state
+    const [filterMode, setFilterMode] = useState(false); // Selection mode for filtering
+    const [hiddenViews, setHiddenViews] = useState(new Set());
+    const [selectedForFilter, setSelectedForFilter] = useState(new Set());
+    
     // Pathfinding state
     const [pathfindingMode, setPathfindingMode] = useState(false);
     const [pathStart, setPathStart] = useState(null);
@@ -102,13 +114,16 @@ export const AppProvider = ({ children }) => {
     const [connectionMode, setConnectionMode] = useState(false);
     const [connectionSource, setConnectionSource] = useState(null);
 
-    // Save settings to localStorage
+    // Save settings to localStorage - debounced
     useEffect(() => {
-        try {
-            localStorage.setItem('dbgraph_settings', JSON.stringify(settings));
-        } catch (e) {
-            console.error('Error saving settings:', e);
-        }
+        const timeout = setTimeout(() => {
+            try {
+                localStorage.setItem('dbgraph_settings', JSON.stringify(settings));
+            } catch (e) {
+                console.warn('Error saving settings:', e);
+            }
+        }, 300);
+        return () => clearTimeout(timeout);
     }, [settings]);
 
     // Save original IDs
@@ -116,7 +131,7 @@ export const AppProvider = ({ children }) => {
         try {
             localStorage.setItem('dbgraph_original_ids', JSON.stringify(originalImportedIds));
         } catch (e) {
-            console.error('Error saving original IDs:', e);
+            console.warn('Error saving original IDs:', e);
         }
     }, [originalImportedIds]);
 
@@ -125,7 +140,7 @@ export const AppProvider = ({ children }) => {
         try {
             localStorage.setItem('dbgraph_last_sql', lastImportedSql);
         } catch (e) {
-            console.error('Error saving SQL:', e);
+            console.warn('Error saving SQL:', e);
         }
     }, [lastImportedSql]);
 
@@ -140,7 +155,7 @@ export const AppProvider = ({ children }) => {
         setSettings(prev => {
             const updated = { ...prev };
             Object.keys(newSettings).forEach(key => {
-                if (key === 'joinColors') {
+                if (key === 'joinColors' && typeof newSettings.joinColors === 'object') {
                     updated.joinColors = { ...prev.joinColors, ...newSettings.joinColors };
                 } else {
                     updated[key] = newSettings[key];
@@ -151,7 +166,7 @@ export const AppProvider = ({ children }) => {
     }, []);
 
     const resetSettings = useCallback(() => {
-        setSettings(defaultSettings);
+        setSettings({ ...defaultSettings });
     }, []);
 
     const toggleTheme = useCallback(() => {
@@ -205,6 +220,37 @@ export const AppProvider = ({ children }) => {
                     duration: 500
                 });
             }
+        }
+    }, []);
+
+    // Copy to clipboard with fallback
+    const copyToClipboard = useCallback(async (text) => {
+        try {
+            // Try modern API first
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+                return true;
+            }
+        } catch (err) {
+            console.warn('Clipboard API failed, using fallback');
+        }
+        
+        // Fallback: create textarea
+        try {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            const success = document.execCommand('copy');
+            document.body.removeChild(textArea);
+            return success;
+        } catch (err) {
+            console.error('Fallback clipboard failed:', err);
+            return false;
         }
     }, []);
 
@@ -296,6 +342,73 @@ export const AppProvider = ({ children }) => {
         setConnectionSource(null);
     }, []);
 
+    // Filter functions
+    const toggleViewHidden = useCallback((viewId) => {
+        setHiddenViews(prev => {
+            const next = new Set(prev);
+            if (next.has(viewId)) {
+                next.delete(viewId);
+            } else {
+                next.add(viewId);
+            }
+            return next;
+        });
+    }, []);
+
+    const toggleViewForFilter = useCallback((viewId) => {
+        setSelectedForFilter(prev => {
+            const next = new Set(prev);
+            if (next.has(viewId)) {
+                next.delete(viewId);
+            } else {
+                next.add(viewId);
+            }
+            return next;
+        });
+    }, []);
+
+    const applyFilter = useCallback(() => {
+        // Hide all views NOT in selectedForFilter
+        const toHide = new Set();
+        views.forEach(v => {
+            if (!selectedForFilter.has(v.view_id)) {
+                toHide.add(v.view_id);
+            }
+        });
+        setHiddenViews(toHide);
+        setFilterMode(false);
+        setSelectedForFilter(new Set());
+    }, [views, selectedForFilter]);
+
+    const clearFilters = useCallback(() => {
+        setHiddenViews(new Set());
+        setSelectedForFilter(new Set());
+        setFilterMode(false);
+    }, []);
+
+    const showOnlyConnected = useCallback((viewId) => {
+        // Find all views connected to this one
+        const connected = new Set([viewId]);
+        relations.forEach(rel => {
+            const sourceView = views.find(v => v.id === rel.source);
+            const targetView = views.find(v => v.id === rel.target);
+            if (sourceView?.view_id === viewId && targetView) {
+                connected.add(targetView.view_id);
+            }
+            if (targetView?.view_id === viewId && sourceView) {
+                connected.add(sourceView.view_id);
+            }
+        });
+        
+        const toHide = new Set();
+        views.forEach(v => {
+            if (!connected.has(v.view_id)) {
+                toHide.add(v.view_id);
+            }
+        });
+        setHiddenViews(toHide);
+    }, [views, relations]);
+
     // Import SQL
     const importSql = useCallback(async (sql, isInitialImport = true) => {
         try {
@@ -303,7 +416,6 @@ export const AppProvider = ({ children }) => {
             
             if (isInitialImport) {
                 setLastImportedSql(sql);
-                // Fetch the newly created data to get IDs
                 const graphRes = await axios.get(`${API}/graph-data`);
                 const viewIds = (graphRes.data.nodes || []).map(v => v.view_id);
                 const relationIds = (graphRes.data.edges || []).map(r => r.id);
@@ -320,9 +432,9 @@ export const AppProvider = ({ children }) => {
 
     // Export view as SQL
     const exportViewAsSql = useCallback((view, type = 'INSERT') => {
-        const name = view.name ? `'${view.name}'` : 'NULL';
-        const name2 = view.name2 ? `'${view.name2}'` : 'NULL';
-        const alias = view.alias ? `'${view.alias}'` : 'NULL';
+        const name = view.name ? `'${view.name.replace(/'/g, "''")}'` : 'NULL';
+        const name2 = view.name2 ? `'${view.name2.replace(/'/g, "''")}'` : 'NULL';
+        const alias = view.alias ? `'${view.alias.replace(/'/g, "''")}'` : 'NULL';
         
         if (type === 'INSERT') {
             return `INSERT INTO Report_View (IdView, Name, Name2, Alias) VALUES(${view.view_id}, ${name}, ${name2}, ${alias});`;
@@ -336,13 +448,21 @@ export const AppProvider = ({ children }) => {
         const rel1 = relation.relation ? `'${relation.relation.replace(/'/g, "''")}'` : 'NULL';
         const rel2 = relation.relation2 ? `'${relation.relation2.replace(/'/g, "''")}'` : 'NULL';
         const weight = relation.edge_weight || 10;
+        const idView1 = relation.source || relation.id_view1;
+        const idView2 = relation.target || relation.id_view2;
+        
+        // Get numeric IDs
+        const sourceView = views.find(v => v.id === idView1);
+        const targetView = views.find(v => v.id === idView2);
+        const numericId1 = sourceView?.view_id || idView1;
+        const numericId2 = targetView?.view_id || idView2;
         
         if (type === 'INSERT') {
-            return `INSERT INTO Report_ViewRelation (IdView1, IdView2, Relation, Relation2, EdgeWeight, MinAppVersion, MaxAppVersion, ChangeOwner) VALUES(${relation.source || relation.id_view1}, ${relation.target || relation.id_view2}, ${rel1}, ${rel2}, ${weight}, 2000000, 999999999, 1);`;
+            return `INSERT INTO Report_ViewRelation (IdView1, IdView2, Relation, Relation2, EdgeWeight, MinAppVersion, MaxAppVersion, ChangeOwner) VALUES(${numericId1}, ${numericId2}, ${rel1}, ${rel2}, ${weight}, 2000000, 999999999, 1);`;
         } else {
-            return `UPDATE Report_ViewRelation SET Relation = ${rel1}, Relation2 = ${rel2}, EdgeWeight = ${weight} WHERE IdView1 = ${relation.source || relation.id_view1} AND IdView2 = ${relation.target || relation.id_view2};`;
+            return `UPDATE Report_ViewRelation SET Relation = ${rel1}, Relation2 = ${rel2}, EdgeWeight = ${weight} WHERE IdView1 = ${numericId1} AND IdView2 = ${numericId2};`;
         }
-    }, []);
+    }, [views]);
 
     // CRUD operations
     const createView = useCallback(async (viewData) => {
@@ -418,6 +538,7 @@ export const AppProvider = ({ children }) => {
             setSelectedRelation(null);
             clearPathfinding();
             clearConnectionMode();
+            clearFilters();
             setOriginalImportedIds({ views: [], relations: [] });
             setLastImportedSql('');
             await fetchData();
@@ -425,10 +546,14 @@ export const AppProvider = ({ children }) => {
             console.error('Error clearing data:', err);
             throw err;
         }
-    }, [fetchData, clearPathfinding, clearConnectionMode]);
+    }, [fetchData, clearPathfinding, clearConnectionMode, clearFilters]);
 
-    // Filter views based on search
+    // Filter views based on search and hidden
     const filteredViews = views.filter(view => {
+        // Check if hidden
+        if (hiddenViews.has(view.view_id)) return false;
+        
+        // Check search
         if (!searchQuery) return true;
         const query = searchQuery.toLowerCase();
         return (
@@ -437,6 +562,18 @@ export const AppProvider = ({ children }) => {
             view.alias?.toLowerCase().includes(query) ||
             String(view.view_id).includes(query)
         );
+    });
+
+    // Visible views (not hidden)
+    const visibleViews = views.filter(v => !hiddenViews.has(v.view_id));
+
+    // Visible relations (both ends visible)
+    const visibleRelations = relations.filter(rel => {
+        const sourceView = views.find(v => v.id === rel.source);
+        const targetView = views.find(v => v.id === rel.target);
+        return sourceView && targetView && 
+               !hiddenViews.has(sourceView.view_id) && 
+               !hiddenViews.has(targetView.view_id);
     });
 
     // Get new views and relations
@@ -461,6 +598,7 @@ export const AppProvider = ({ children }) => {
         isNewRelation,
         getNextViewId,
         focusOnNode,
+        copyToClipboard,
         exportViewAsSql,
         exportRelationAsSql,
         
@@ -468,6 +606,8 @@ export const AppProvider = ({ children }) => {
         views,
         relations,
         filteredViews,
+        visibleViews,
+        visibleRelations,
         newViews,
         newRelations,
         loading,
@@ -484,6 +624,17 @@ export const AppProvider = ({ children }) => {
         // Search
         searchQuery,
         setSearchQuery,
+        
+        // Filters
+        filterMode,
+        setFilterMode,
+        hiddenViews,
+        selectedForFilter,
+        toggleViewHidden,
+        toggleViewForFilter,
+        applyFilter,
+        clearFilters,
+        showOnlyConnected,
         
         // Pathfinding
         pathfindingMode,

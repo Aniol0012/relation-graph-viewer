@@ -1,7 +1,7 @@
-import React, { memo, useState } from 'react';
+import React, { memo } from 'react';
 import { Handle, Position } from 'reactflow';
 import { useApp } from '../../context/AppContext';
-import { Link2, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import {
     ContextMenu,
     ContextMenuContent,
@@ -62,11 +62,11 @@ export const CustomNode = memo(({ data, selected }) => {
     // Determine border color
     let borderColor = 'transparent';
     if (isConnectionSource) {
-        borderColor = '#F59E0B'; // amber for connection source
+        borderColor = '#F59E0B';
     } else if (isNew) {
-        borderColor = '#F59E0B'; // amber for new
+        borderColor = '#F59E0B';
     } else if (isPathNode) {
-        borderColor = '#10B981'; // green for path
+        borderColor = '#10B981';
     } else if (selected) {
         borderColor = 'hsl(var(--accent))';
     }
@@ -95,12 +95,13 @@ export const CustomNode = memo(({ data, selected }) => {
                     <Handle
                         type="target"
                         position={Position.Top}
-                        className="node-handle"
+                        className="node-handle-large"
+                        isConnectable={true}
                     />
                     
                     {/* New badge */}
                     {isNew && (
-                        <div className="absolute -top-2 -right-2 w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center">
+                        <div className="absolute -top-2 -right-2 w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center z-10">
                             <Sparkles className="w-2.5 h-2.5 text-white" />
                         </div>
                     )}
@@ -135,7 +136,8 @@ export const CustomNode = memo(({ data, selected }) => {
                     <Handle
                         type="source"
                         position={Position.Bottom}
-                        className="node-handle"
+                        className="node-handle-large"
+                        isConnectable={true}
                     />
                 </div>
             </ContextMenuTrigger>
@@ -145,7 +147,6 @@ export const CustomNode = memo(({ data, selected }) => {
                 </ContextMenuItem>
                 <ContextMenuSeparator />
                 <ContextMenuItem onClick={handleStartConnection} data-testid="ctx-create-relation">
-                    <Link2 className="w-4 h-4 mr-2" />
                     Crear relació des d'aquí
                 </ContextMenuItem>
             </ContextMenuContent>

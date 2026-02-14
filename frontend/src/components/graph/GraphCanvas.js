@@ -128,8 +128,9 @@ const calculateLayout = (nodes, edges, direction = 'TB', nodeSpacing = 80, level
 
 export const GraphCanvas = () => {
     const { 
-        views, 
-        relations, 
+        visibleViews,
+        visibleRelations,
+        views,
         selectedView, 
         setSelectedView,
         selectedRelation,
@@ -147,9 +148,11 @@ export const GraphCanvas = () => {
         findPath,
         connectionMode,
         connectionSource,
+        setConnectionMode,
         setConnectionSource,
         clearConnectionMode,
-        reactFlowInstance
+        reactFlowInstance,
+        createRelation
     } = useApp();
 
     const [createRelationModal, setCreateRelationModal] = useState(false);
@@ -157,7 +160,7 @@ export const GraphCanvas = () => {
 
     // Transform data to React Flow format
     const initialNodes = useMemo(() => {
-        return views.map(view => ({
+        return visibleViews.map(view => ({
             id: view.id,
             type: 'custom',
             data: {
@@ -169,10 +172,10 @@ export const GraphCanvas = () => {
             },
             position: { x: 0, y: 0 }
         }));
-    }, [views]);
+    }, [visibleViews]);
 
     const initialEdges = useMemo(() => {
-        return relations.map(rel => {
+        return visibleRelations.map(rel => {
             const joinType = getJoinType(rel.relation);
             const color = getJoinColor(rel.relation);
             const isInPath = foundPath?.edges?.includes(rel.id);
@@ -210,7 +213,7 @@ export const GraphCanvas = () => {
                 labelBgPadding: [4, 2]
             };
         });
-    }, [relations, settings, getJoinType, getJoinColor, foundPath, isNewRelation]);
+    }, [visibleRelations, settings, getJoinType, getJoinColor, foundPath, isNewRelation]);
 
     // Apply layout
     const layoutedNodes = useMemo(() => {
@@ -259,16 +262,41 @@ export const GraphCanvas = () => {
         }
     }, [views, setSelectedView, setSelectedRelation, pathfindingMode, pathStart, pathEnd, setPathStart, setPathEnd, findPath, connectionMode, connectionSource]);
 
+    // Handle drop on node (for creating relations)
+    const onNodeDragStop = useCallback((event, node) => {
+        // Check if we're in connection mode and dropped on another node
+        if (connectionMode && connectionSource) {
+            // Get all nodes at drop position
+            const dropX = event.clientX;
+            const dropY = event.clientY;
+            
+            // Find if we're over another node
+            const elementsAtPoint = document.elementsFromPoint(dropX, dropY);
+            const nodeElement = elementsAtPoint.find(el => 
+                el.classList.contains('custom-node') && 
+                el.closest('.react-flow__node')?.dataset?.id !== connectionSource
+            );
+            
+            if (nodeElement) {
+                const targetNodeId = nodeElement.closest('.react-flow__node')?.dataset?.id;
+                if (targetNodeId && targetNodeId !== connectionSource) {
+                    setRelationTargetId(targetNodeId);
+                    setCreateRelationModal(true);
+                }
+            }
+        }
+    }, [connectionMode, connectionSource]);
+
     // Handle edge click
     const onEdgeClick = useCallback((event, edge) => {
         if (pathfindingMode || connectionMode) return;
         
-        const relation = relations.find(r => r.id === edge.id);
+        const relation = visibleRelations.find(r => r.id === edge.id);
         if (relation) {
             setSelectedRelation(relation);
             setSelectedView(null);
         }
-    }, [relations, setSelectedRelation, setSelectedView, pathfindingMode, connectionMode]);
+    }, [visibleRelations, setSelectedRelation, setSelectedView, pathfindingMode, connectionMode]);
 
     // Handle background click
     const onPaneClick = useCallback(() => {
@@ -288,8 +316,17 @@ export const GraphCanvas = () => {
         reactFlowInstance.current = instance;
     }, [reactFlowInstance]);
 
+    // Handle connect (edge creation via drag)
+    const onConnect = useCallback((params) => {
+        if (params.source && params.target) {
+            setConnectionSource(params.source);
+            setRelationTargetId(params.target);
+            setCreateRelationModal(true);
+        }
+    }, [setConnectionSource]);
+
     // Empty state
-    if (views.length === 0) {
+    if (visibleViews.length === 0) {
         return (
             <div className="empty-state">
                 <Database className="w-16 h-16 mb-4 text-muted-foreground/50" />
@@ -308,7 +345,7 @@ export const GraphCanvas = () => {
         <>
             {connectionMode && (
                 <div className="absolute top-20 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-500 text-sm font-medium">
-                    Clica una altra vista per crear la relació
+                    Arrossega sobre una altra vista o clica-la per crear la relació
                 </div>
             )}
             
@@ -318,14 +355,17 @@ export const GraphCanvas = () => {
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onNodeClick={onNodeClick}
+                onNodeDragStop={onNodeDragStop}
                 onEdgeClick={onEdgeClick}
                 onPaneClick={onPaneClick}
                 onInit={onInit}
+                onConnect={onConnect}
                 nodeTypes={nodeTypes}
                 fitView
                 fitViewOptions={{ padding: 0.2 }}
                 minZoom={0.05}
                 maxZoom={2}
+                connectOnClick={false}
                 defaultEdgeOptions={{
                     type: settings.edgeStyle
                 }}

@@ -1,13 +1,27 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Input } from '../ui/input';
 import { ScrollArea } from '../ui/scroll-area';
 import { Badge } from '../ui/badge';
-import { Database, Search, Box, GitBranch, X, Sparkles } from 'lucide-react';
 import { Button } from '../ui/button';
+import { Checkbox } from '../ui/checkbox';
+import { 
+    Database, 
+    Search, 
+    Box, 
+    GitBranch, 
+    X, 
+    Sparkles,
+    Filter,
+    Eye,
+    EyeOff,
+    Check,
+    Link2
+} from 'lucide-react';
 
 export const Sidebar = () => {
     const { 
+        views,
         filteredViews, 
         searchQuery, 
         setSearchQuery,
@@ -23,13 +37,24 @@ export const Sidebar = () => {
         isNewView,
         newViews,
         newRelations,
-        focusOnNode
+        focusOnNode,
+        filterMode,
+        setFilterMode,
+        hiddenViews,
+        selectedForFilter,
+        toggleViewForFilter,
+        applyFilter,
+        clearFilters,
+        showOnlyConnected
     } = useApp();
 
     const handleViewClick = (view) => {
+        if (filterMode) {
+            toggleViewForFilter(view.view_id);
+            return;
+        }
         setSelectedView(view);
         setSelectedRelation(null);
-        // Focus on the node in the graph
         focusOnNode(view.id);
     };
 
@@ -37,7 +62,6 @@ export const Sidebar = () => {
         setSearchQuery('');
     };
 
-    // Get display text for a view
     const getDisplayText = (view) => {
         const maxLen = settings.maxNodeNameLength;
         let name = view.alias || view.name || `View_${view.view_id}`;
@@ -45,6 +69,14 @@ export const Sidebar = () => {
             name = name.substring(0, maxLen - 2) + '..';
         }
         return name;
+    };
+
+    const handleStartFilterMode = () => {
+        setFilterMode(true);
+    };
+
+    const handleCancelFilterMode = () => {
+        setFilterMode(false);
     };
 
     return (
@@ -57,10 +89,10 @@ export const Sidebar = () => {
                     </div>
                     <div>
                         <h1 className="font-heading font-semibold text-lg">
-                            DB Graph
+                            Relation Graph
                         </h1>
                         <p className="text-xs text-muted-foreground">
-                            Visualitzador d'estructura
+                            Viewer
                         </p>
                     </div>
                 </div>
@@ -81,10 +113,35 @@ export const Sidebar = () => {
                             <span>{newViews.length + newRelations.length} nous</span>
                         </div>
                     )}
+                    {hiddenViews.size > 0 && (
+                        <div className="stats-badge bg-muted text-muted-foreground">
+                            <EyeOff className="w-3 h-3" />
+                            <span>{hiddenViews.size} ocultes</span>
+                        </div>
+                    )}
                 </div>
 
+                {/* Filter mode indicator */}
+                {filterMode && (
+                    <div className="mb-4 p-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                        <div className="text-xs font-medium text-blue-500 mb-2">Mode selecció de filtres</div>
+                        <div className="text-xs text-muted-foreground mb-2">
+                            Selecciona les vistes que vols mostrar ({selectedForFilter.size} seleccionades)
+                        </div>
+                        <div className="flex gap-2">
+                            <Button size="sm" variant="outline" onClick={handleCancelFilterMode}>
+                                Cancel·lar
+                            </Button>
+                            <Button size="sm" onClick={applyFilter} disabled={selectedForFilter.size === 0}>
+                                <Check className="w-3 h-3 mr-1" />
+                                Aplicar
+                            </Button>
+                        </div>
+                    </div>
+                )}
+
                 {/* Pathfinding indicator */}
-                {pathfindingMode && (
+                {pathfindingMode && !filterMode && (
                     <div className="mb-4 p-2 rounded-lg bg-accent/10 border border-accent/20">
                         <div className="text-xs font-medium text-accent mb-1">Mode cerca de camí</div>
                         <div className="text-xs text-muted-foreground">
@@ -97,7 +154,7 @@ export const Sidebar = () => {
                 )}
 
                 {/* Search */}
-                <div className="relative">
+                <div className="relative mb-2">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
                         type="text"
@@ -119,40 +176,77 @@ export const Sidebar = () => {
                         </Button>
                     )}
                 </div>
+
+                {/* Filter buttons */}
+                {!filterMode && (
+                    <div className="flex gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 text-xs"
+                            onClick={handleStartFilterMode}
+                            data-testid="filter-mode-btn"
+                        >
+                            <Filter className="w-3 h-3 mr-1" />
+                            Filtrar
+                        </Button>
+                        {hiddenViews.size > 0 && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-xs"
+                                onClick={clearFilters}
+                                data-testid="clear-filters-btn"
+                            >
+                                <Eye className="w-3 h-3 mr-1" />
+                                Mostrar tot
+                            </Button>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* View List */}
             <ScrollArea className="sidebar-content">
                 <div className="space-y-1">
-                    {filteredViews.length === 0 ? (
+                    {(filterMode ? views : filteredViews).length === 0 ? (
                         <div className="p-4 text-center text-sm text-muted-foreground">
                             {searchQuery 
                                 ? 'No s\'han trobat resultats' 
                                 : 'No hi ha vistes carregades'}
                         </div>
                     ) : (
-                        filteredViews.map(view => {
+                        (filterMode ? views : filteredViews).map(view => {
                             const isInPath = foundPath?.nodes?.includes(view.id);
                             const isPathStart = pathStart === view.id;
                             const isPathEnd = pathEnd === view.id;
                             const isNew = isNewView(view.view_id);
+                            const isHidden = hiddenViews.has(view.view_id);
+                            const isSelectedForFilter = selectedForFilter.has(view.view_id);
                             
                             return (
                                 <div
                                     key={view.id}
-                                    className={`view-list-item ${selectedView?.id === view.id ? 'selected' : ''} ${isInPath ? 'path-item' : ''}`}
+                                    className={`view-list-item ${selectedView?.id === view.id && !filterMode ? 'selected' : ''} ${isInPath ? 'path-item' : ''} ${filterMode && isSelectedForFilter ? 'filter-selected' : ''}`}
                                     onClick={() => handleViewClick(view)}
                                     data-testid={`view-item-${view.view_id}`}
                                     style={{
-                                        borderLeftColor: isNew ? '#F59E0B' : (isInPath ? '#10B981' : undefined),
-                                        backgroundColor: isInPath ? 'rgba(16, 185, 129, 0.1)' : (isNew ? 'rgba(245, 158, 11, 0.05)' : undefined)
+                                        borderLeftColor: isNew ? '#F59E0B' : (isInPath ? '#10B981' : (isSelectedForFilter ? '#3B82F6' : undefined)),
+                                        backgroundColor: isInPath ? 'rgba(16, 185, 129, 0.1)' : (isNew ? 'rgba(245, 158, 11, 0.05)' : (isSelectedForFilter ? 'rgba(59, 130, 246, 0.1)' : undefined)),
+                                        opacity: isHidden && !filterMode ? 0.5 : 1
                                     }}
                                 >
                                     <div className="flex items-center gap-2">
+                                        {filterMode && (
+                                            <Checkbox 
+                                                checked={isSelectedForFilter}
+                                                className="mr-1"
+                                            />
+                                        )}
                                         <span className="font-medium truncate flex-1">
                                             {getDisplayText(view)}
                                         </span>
-                                        {isNew && (
+                                        {isNew && !filterMode && (
                                             <Badge variant="outline" className="text-[10px] px-1 py-0 bg-amber-500/20 text-amber-500 border-amber-500/30">
                                                 NOU
                                             </Badge>
@@ -177,8 +271,21 @@ export const Sidebar = () => {
                                                 alias
                                             </Badge>
                                         )}
+                                        {!filterMode && (
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-5 w-5 ml-auto opacity-0 group-hover:opacity-100"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    showOnlyConnected(view.view_id);
+                                                }}
+                                                title="Mostrar només connectades"
+                                            >
+                                                <Link2 className="w-3 h-3" />
+                                            </Button>
+                                        )}
                                     </div>
-                                    {/* Show original name if using alias */}
                                     {settings.showAlias && view.alias && view.name !== view.alias && (
                                         <div className="text-[10px] text-muted-foreground/70 mt-0.5 truncate">
                                             {view.name}

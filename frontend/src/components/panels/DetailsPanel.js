@@ -1,17 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Badge } from '../ui/badge';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-    DropdownMenuSeparator,
-} from '../ui/dropdown-menu';
 import { 
     X, 
     Edit2, 
@@ -20,9 +13,9 @@ import {
     Box, 
     GitBranch,
     ArrowRight,
-    Download,
     Copy,
-    Sparkles
+    Sparkles,
+    GripVertical
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -42,11 +35,49 @@ export const DetailsPanel = () => {
         isNewView,
         isNewRelation,
         exportViewAsSql,
-        exportRelationAsSql
+        exportRelationAsSql,
+        copyToClipboard,
+        settings,
+        updateSettings
     } = useApp();
 
     const [isEditing, setIsEditing] = useState(false);
     const [editData, setEditData] = useState({});
+    const [isResizing, setIsResizing] = useState(false);
+    const panelRef = useRef(null);
+    const startXRef = useRef(0);
+    const startWidthRef = useRef(0);
+
+    // Handle resize
+    const handleMouseDown = (e) => {
+        setIsResizing(true);
+        startXRef.current = e.clientX;
+        startWidthRef.current = settings.detailsPanelWidth || 380;
+        e.preventDefault();
+    };
+
+    useEffect(() => {
+        const handleMouseMove = (e) => {
+            if (!isResizing) return;
+            const diff = startXRef.current - e.clientX;
+            const newWidth = Math.min(Math.max(startWidthRef.current + diff, 300), 600);
+            updateSettings({ detailsPanelWidth: newWidth });
+        };
+
+        const handleMouseUp = () => {
+            setIsResizing(false);
+        };
+
+        if (isResizing) {
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+        }
+
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isResizing, updateSettings]);
 
     const handleClose = () => {
         setSelectedView(null);
@@ -100,15 +131,21 @@ export const DetailsPanel = () => {
         }
     };
 
-    const handleCopySql = (type) => {
+    const handleCopySql = async (type) => {
         let sql = '';
         if (selectedView) {
             sql = exportViewAsSql(selectedView, type);
         } else if (selectedRelation) {
             sql = exportRelationAsSql(selectedRelation, type);
         }
-        navigator.clipboard.writeText(sql);
-        toast.success(`SQL ${type} copiat al portapapers`);
+        const success = await copyToClipboard(sql);
+        if (success) {
+            toast.success(`SQL ${type} copiat al portapapers`);
+        } else {
+            toast.error('No s\'ha pogut copiar. Selecciona el text manualment.');
+            // Show the SQL in a prompt as fallback
+            window.prompt('Copia aquest SQL:', sql);
+        }
     };
 
     if (!selectedView && !selectedRelation) return null;
@@ -130,11 +167,27 @@ export const DetailsPanel = () => {
         ? isNewView(selectedView.view_id) 
         : (selectedRelation ? isNewRelation(selectedRelation.id) : false);
 
+    const panelWidth = settings.detailsPanelWidth || 380;
+
     return (
-        <div className="details-panel animate-slide-in-right" data-testid="details-panel">
+        <div 
+            ref={panelRef}
+            className="details-panel animate-slide-in-right" 
+            style={{ width: panelWidth }}
+            data-testid="details-panel"
+        >
+            {/* Resize handle */}
+            <div 
+                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-accent/20 flex items-center justify-center group"
+                onMouseDown={handleMouseDown}
+                data-testid="resize-handle"
+            >
+                <GripVertical className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-border">
-                <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between p-4 border-b border-border ml-2">
+                <div className="flex items-center gap-2 flex-wrap">
                     {selectedView ? (
                         <Box className="w-5 h-5 text-accent" />
                     ) : (
@@ -146,7 +199,7 @@ export const DetailsPanel = () => {
                     {joinType && (
                         <Badge 
                             variant="outline" 
-                            className="ml-2 text-xs"
+                            className="text-xs"
                             style={{ 
                                 borderColor: joinColor,
                                 color: joinColor
@@ -172,8 +225,32 @@ export const DetailsPanel = () => {
                 </Button>
             </div>
 
+            {/* Export buttons - always visible */}
+            <div className="px-4 py-2 border-b border-border ml-2 flex gap-2">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleCopySql('INSERT')}
+                    className="flex-1"
+                    data-testid="copy-insert-btn"
+                >
+                    <Copy className="w-3 h-3 mr-1" />
+                    INSERT
+                </Button>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleCopySql('UPDATE')}
+                    className="flex-1"
+                    data-testid="copy-update-btn"
+                >
+                    <Copy className="w-3 h-3 mr-1" />
+                    UPDATE
+                </Button>
+            </div>
+
             {/* Content */}
-            <div className="p-4 space-y-4">
+            <div className="p-4 space-y-4 ml-2 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 250px)' }}>
                 {selectedView && (
                     <>
                         {/* View ID */}
@@ -215,9 +292,6 @@ export const DetailsPanel = () => {
                                         className="mt-1"
                                         data-testid="edit-alias-input"
                                     />
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                        L'alias es mostra al graf si està definit
-                                    </p>
                                 </div>
                             </>
                         ) : (
@@ -325,17 +399,15 @@ export const DetailsPanel = () => {
                                 </div>
                                 {selectedRelation.relation2 && (
                                     <div>
-                                        <Label className="text-muted-foreground">Relation2 (SQL alternativa)</Label>
+                                        <Label className="text-muted-foreground">Relation2</Label>
                                         <div className="sql-code mt-1">
                                             {selectedRelation.relation2}
                                         </div>
                                     </div>
                                 )}
-                                <div className="flex gap-4">
-                                    <div>
-                                        <Label className="text-muted-foreground">Edge Weight</Label>
-                                        <div className="mt-1 font-mono">{selectedRelation.edge_weight || 10}</div>
-                                    </div>
+                                <div>
+                                    <Label className="text-muted-foreground">Edge Weight</Label>
+                                    <div className="mt-1 font-mono">{selectedRelation.edge_weight || 10}</div>
                                 </div>
                             </>
                         )}
@@ -344,7 +416,7 @@ export const DetailsPanel = () => {
             </div>
 
             {/* Actions */}
-            <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border bg-background/95 backdrop-blur">
+            <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border bg-background/95 backdrop-blur ml-2">
                 {isEditing ? (
                     <div className="flex gap-2">
                         <Button
@@ -375,26 +447,6 @@ export const DetailsPanel = () => {
                             <Edit2 className="w-4 h-4 mr-2" />
                             Editar
                         </Button>
-                        
-                        {/* Export dropdown */}
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="outline" data-testid="export-sql-btn">
-                                    <Download className="w-4 h-4" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => handleCopySql('INSERT')} data-testid="export-insert-btn">
-                                    <Copy className="w-4 h-4 mr-2" />
-                                    Copiar INSERT
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleCopySql('UPDATE')} data-testid="export-update-btn">
-                                    <Copy className="w-4 h-4 mr-2" />
-                                    Copiar UPDATE
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-
                         <Button
                             variant="destructive"
                             onClick={handleDelete}

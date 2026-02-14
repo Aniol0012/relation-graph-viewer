@@ -35,7 +35,6 @@ import {
     Settings,
     Route,
     X,
-    Download,
     Copy,
     Sparkles
 } from 'lucide-react';
@@ -63,7 +62,7 @@ export const Toolbar = () => {
         exportViewAsSql,
         exportRelationAsSql,
         views,
-        relations
+        copyToClipboard
     } = useApp();
     
     const [importModalOpen, setImportModalOpen] = useState(false);
@@ -101,7 +100,7 @@ export const Toolbar = () => {
         }
     };
 
-    const handleExportNewItems = (type) => {
+    const handleExportNewItems = async (type) => {
         let sql = '';
         
         if (type === 'all' || type === 'views') {
@@ -120,8 +119,13 @@ export const Toolbar = () => {
         }
         
         if (sql) {
-            navigator.clipboard.writeText(sql.trim());
-            toast.success('SQL copiat al portapapers');
+            const success = await copyToClipboard(sql.trim());
+            if (success) {
+                toast.success('SQL copiat al portapapers');
+            } else {
+                toast.error('No s\'ha pogut copiar automàticament');
+                window.prompt('Copia aquest SQL:', sql.trim());
+            }
         } else {
             toast.info('No hi ha elements nous per exportar');
         }
