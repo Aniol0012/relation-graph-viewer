@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -12,26 +12,26 @@ const defaultSettings = {
     showViewId: true,
     showAlias: true,
     maxNodeNameLength: 20,
-    nodeSize: 'medium', // small, medium, large
+    nodeSize: 'medium',
     
     // Colors per join type
     joinColors: {
-        'LEFT JOIN': '#3B82F6',      // Blue
-        'RIGHT JOIN': '#8B5CF6',     // Purple
-        'INNER JOIN': '#10B981',     // Green
-        'CROSS JOIN': '#F59E0B',     // Amber
-        'FULL JOIN': '#EC4899',      // Pink
-        'JOIN': '#6366F1',           // Indigo
-        'DEFAULT': '#71717A'         // Gray
+        'LEFT JOIN': '#3B82F6',
+        'RIGHT JOIN': '#8B5CF6',
+        'INNER JOIN': '#10B981',
+        'CROSS JOIN': '#F59E0B',
+        'FULL JOIN': '#EC4899',
+        'JOIN': '#6366F1',
+        'DEFAULT': '#71717A'
     },
     
     // Layout
-    layoutDirection: 'TB', // TB (top-bottom), LR (left-right)
+    layoutDirection: 'TB',
     nodeSpacing: 80,
     levelSpacing: 120,
     
     // Edges
-    edgeStyle: 'smoothstep', // smoothstep, bezier, straight
+    edgeStyle: 'smoothstep',
     showEdgeLabels: true,
     animatedEdges: false,
     
@@ -48,10 +48,36 @@ export const useApp = () => {
 };
 
 export const AppProvider = ({ children }) => {
+    // React Flow instance ref
+    const reactFlowInstance = useRef(null);
+    
     // Settings state
     const [settings, setSettings] = useState(() => {
-        const saved = localStorage.getItem('dbgraph_settings');
-        return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
+        try {
+            const saved = localStorage.getItem('dbgraph_settings');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                return { ...defaultSettings, ...parsed, joinColors: { ...defaultSettings.joinColors, ...parsed.joinColors } };
+            }
+        } catch (e) {
+            console.error('Error loading settings:', e);
+        }
+        return defaultSettings;
+    });
+
+    // Original imported data (to track what's new)
+    const [originalImportedIds, setOriginalImportedIds] = useState(() => {
+        try {
+            const saved = localStorage.getItem('dbgraph_original_ids');
+            return saved ? JSON.parse(saved) : { views: [], relations: [] };
+        } catch (e) {
+            return { views: [], relations: [] };
+        }
+    });
+
+    // Last imported SQL script
+    const [lastImportedSql, setLastImportedSql] = useState(() => {
+        return localStorage.getItem('dbgraph_last_sql') || '';
     });
 
     // Data state
@@ -72,10 +98,36 @@ export const AppProvider = ({ children }) => {
     const [pathEnd, setPathEnd] = useState(null);
     const [foundPath, setFoundPath] = useState(null);
 
+    // Connection mode (for creating relations from nodes)
+    const [connectionMode, setConnectionMode] = useState(false);
+    const [connectionSource, setConnectionSource] = useState(null);
+
     // Save settings to localStorage
     useEffect(() => {
-        localStorage.setItem('dbgraph_settings', JSON.stringify(settings));
+        try {
+            localStorage.setItem('dbgraph_settings', JSON.stringify(settings));
+        } catch (e) {
+            console.error('Error saving settings:', e);
+        }
     }, [settings]);
+
+    // Save original IDs
+    useEffect(() => {
+        try {
+            localStorage.setItem('dbgraph_original_ids', JSON.stringify(originalImportedIds));
+        } catch (e) {
+            console.error('Error saving original IDs:', e);
+        }
+    }, [originalImportedIds]);
+
+    // Save last SQL
+    useEffect(() => {
+        try {
+            localStorage.setItem('dbgraph_last_sql', lastImportedSql);
+        } catch (e) {
+            console.error('Error saving SQL:', e);
+        }
+    }, [lastImportedSql]);
 
     // Apply theme
     useEffect(() => {
@@ -84,21 +136,30 @@ export const AppProvider = ({ children }) => {
         root.classList.add(settings.theme);
     }, [settings.theme]);
 
-    const updateSettings = (newSettings) => {
-        setSettings(prev => ({ ...prev, ...newSettings }));
-    };
+    const updateSettings = useCallback((newSettings) => {
+        setSettings(prev => {
+            const updated = { ...prev };
+            Object.keys(newSettings).forEach(key => {
+                if (key === 'joinColors') {
+                    updated.joinColors = { ...prev.joinColors, ...newSettings.joinColors };
+                } else {
+                    updated[key] = newSettings[key];
+                }
+            });
+            return updated;
+        });
+    }, []);
 
-    const resetSettings = () => {
+    const resetSettings = useCallback(() => {
         setSettings(defaultSettings);
-        localStorage.removeItem('dbgraph_settings');
-    };
+    }, []);
 
-    const toggleTheme = () => {
-        updateSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' });
-    };
+    const toggleTheme = useCallback(() => {
+        setSettings(prev => ({ ...prev, theme: prev.theme === 'dark' ? 'light' : 'dark' }));
+    }, []);
 
     // Get join type from relation string
-    const getJoinType = (relationStr) => {
+    const getJoinType = useCallback((relationStr) => {
         if (!relationStr) return 'DEFAULT';
         const upper = relationStr.toUpperCase();
         if (upper.includes('LEFT JOIN')) return 'LEFT JOIN';
@@ -108,28 +169,44 @@ export const AppProvider = ({ children }) => {
         if (upper.includes('FULL JOIN') || upper.includes('FULL OUTER')) return 'FULL JOIN';
         if (upper.includes('JOIN')) return 'JOIN';
         return 'DEFAULT';
-    };
+    }, []);
 
     // Get color for join type
-    const getJoinColor = (relationStr) => {
+    const getJoinColor = useCallback((relationStr) => {
         const joinType = getJoinType(relationStr);
         return settings.joinColors[joinType] || settings.joinColors['DEFAULT'];
-    };
+    }, [getJoinType, settings.joinColors]);
 
-    // Truncate name
-    const truncateName = (name, maxLength) => {
-        if (!name) return '';
-        if (name.length <= maxLength) return name;
-        return name.substring(0, maxLength - 2) + '..';
-    };
+    // Check if a view is new (not in original import)
+    const isNewView = useCallback((viewId) => {
+        return !originalImportedIds.views.includes(viewId);
+    }, [originalImportedIds.views]);
 
-    // Format display name for node
-    const formatNodeDisplay = (view) => {
-        const maxLen = settings.maxNodeNameLength;
-        let displayName = view.alias || view.name || `View_${view.view_id}`;
-        displayName = truncateName(displayName, maxLen);
-        return displayName;
-    };
+    // Check if a relation is new
+    const isNewRelation = useCallback((relationId) => {
+        return !originalImportedIds.relations.includes(relationId);
+    }, [originalImportedIds.relations]);
+
+    // Get next available view ID
+    const getNextViewId = useCallback(() => {
+        if (views.length === 0) return 1;
+        const maxId = Math.max(...views.map(v => v.view_id));
+        return maxId + 1;
+    }, [views]);
+
+    // Focus on a node in the graph
+    const focusOnNode = useCallback((nodeId) => {
+        if (reactFlowInstance.current) {
+            const node = reactFlowInstance.current.getNode(nodeId);
+            if (node) {
+                reactFlowInstance.current.fitView({
+                    nodes: [node],
+                    padding: 0.5,
+                    duration: 500
+                });
+            }
+        }
+    }, []);
 
     // Fetch data
     const fetchData = useCallback(async () => {
@@ -164,7 +241,6 @@ export const AppProvider = ({ children }) => {
             return null;
         }
 
-        // Build adjacency list (bidirectional)
         const adjacency = new Map();
         views.forEach(v => adjacency.set(v.id, []));
         
@@ -177,7 +253,6 @@ export const AppProvider = ({ children }) => {
             }
         });
 
-        // BFS
         const queue = [{ node: startId, path: [startId], edges: [] }];
         const visited = new Set([startId]);
 
@@ -208,27 +283,69 @@ export const AppProvider = ({ children }) => {
     }, [views, relations]);
 
     // Clear pathfinding
-    const clearPathfinding = () => {
+    const clearPathfinding = useCallback(() => {
         setPathfindingMode(false);
         setPathStart(null);
         setPathEnd(null);
         setFoundPath(null);
-    };
+    }, []);
+
+    // Clear connection mode
+    const clearConnectionMode = useCallback(() => {
+        setConnectionMode(false);
+        setConnectionSource(null);
+    }, []);
 
     // Import SQL
-    const importSql = async (sql) => {
+    const importSql = useCallback(async (sql, isInitialImport = true) => {
         try {
             const response = await axios.post(`${API}/import-sql`, { sql });
+            
+            if (isInitialImport) {
+                setLastImportedSql(sql);
+                // Fetch the newly created data to get IDs
+                const graphRes = await axios.get(`${API}/graph-data`);
+                const viewIds = (graphRes.data.nodes || []).map(v => v.view_id);
+                const relationIds = (graphRes.data.edges || []).map(r => r.id);
+                setOriginalImportedIds({ views: viewIds, relations: relationIds });
+            }
+            
             await fetchData();
             return response.data;
         } catch (err) {
             console.error('Error importing SQL:', err);
             throw err;
         }
-    };
+    }, [fetchData]);
+
+    // Export view as SQL
+    const exportViewAsSql = useCallback((view, type = 'INSERT') => {
+        const name = view.name ? `'${view.name}'` : 'NULL';
+        const name2 = view.name2 ? `'${view.name2}'` : 'NULL';
+        const alias = view.alias ? `'${view.alias}'` : 'NULL';
+        
+        if (type === 'INSERT') {
+            return `INSERT INTO Report_View (IdView, Name, Name2, Alias) VALUES(${view.view_id}, ${name}, ${name2}, ${alias});`;
+        } else {
+            return `UPDATE Report_View SET Name = ${name}, Name2 = ${name2}, Alias = ${alias} WHERE IdView = ${view.view_id};`;
+        }
+    }, []);
+
+    // Export relation as SQL
+    const exportRelationAsSql = useCallback((relation, type = 'INSERT') => {
+        const rel1 = relation.relation ? `'${relation.relation.replace(/'/g, "''")}'` : 'NULL';
+        const rel2 = relation.relation2 ? `'${relation.relation2.replace(/'/g, "''")}'` : 'NULL';
+        const weight = relation.edge_weight || 10;
+        
+        if (type === 'INSERT') {
+            return `INSERT INTO Report_ViewRelation (IdView1, IdView2, Relation, Relation2, EdgeWeight, MinAppVersion, MaxAppVersion, ChangeOwner) VALUES(${relation.source || relation.id_view1}, ${relation.target || relation.id_view2}, ${rel1}, ${rel2}, ${weight}, 2000000, 999999999, 1);`;
+        } else {
+            return `UPDATE Report_ViewRelation SET Relation = ${rel1}, Relation2 = ${rel2}, EdgeWeight = ${weight} WHERE IdView1 = ${relation.source || relation.id_view1} AND IdView2 = ${relation.target || relation.id_view2};`;
+        }
+    }, []);
 
     // CRUD operations
-    const createView = async (viewData) => {
+    const createView = useCallback(async (viewData) => {
         try {
             await axios.post(`${API}/views`, viewData);
             await fetchData();
@@ -236,9 +353,9 @@ export const AppProvider = ({ children }) => {
             console.error('Error creating view:', err);
             throw err;
         }
-    };
+    }, [fetchData]);
 
-    const updateView = async (viewId, updateData) => {
+    const updateView = useCallback(async (viewId, updateData) => {
         try {
             await axios.put(`${API}/views/${viewId}`, updateData);
             await fetchData();
@@ -246,9 +363,9 @@ export const AppProvider = ({ children }) => {
             console.error('Error updating view:', err);
             throw err;
         }
-    };
+    }, [fetchData]);
 
-    const deleteView = async (viewId) => {
+    const deleteView = useCallback(async (viewId) => {
         try {
             await axios.delete(`${API}/views/${viewId}`);
             if (selectedView?.view_id === viewId) {
@@ -259,9 +376,9 @@ export const AppProvider = ({ children }) => {
             console.error('Error deleting view:', err);
             throw err;
         }
-    };
+    }, [fetchData, selectedView]);
 
-    const createRelation = async (relationData) => {
+    const createRelation = useCallback(async (relationData) => {
         try {
             await axios.post(`${API}/relations`, relationData);
             await fetchData();
@@ -269,9 +386,9 @@ export const AppProvider = ({ children }) => {
             console.error('Error creating relation:', err);
             throw err;
         }
-    };
+    }, [fetchData]);
 
-    const updateRelation = async (relationId, updateData) => {
+    const updateRelation = useCallback(async (relationId, updateData) => {
         try {
             await axios.put(`${API}/relations/${relationId}`, updateData);
             await fetchData();
@@ -279,9 +396,9 @@ export const AppProvider = ({ children }) => {
             console.error('Error updating relation:', err);
             throw err;
         }
-    };
+    }, [fetchData]);
 
-    const deleteRelation = async (relationId) => {
+    const deleteRelation = useCallback(async (relationId) => {
         try {
             await axios.delete(`${API}/relations/${relationId}`);
             if (selectedRelation?.id === relationId) {
@@ -292,20 +409,23 @@ export const AppProvider = ({ children }) => {
             console.error('Error deleting relation:', err);
             throw err;
         }
-    };
+    }, [fetchData, selectedRelation]);
 
-    const clearAllData = async () => {
+    const clearAllData = useCallback(async () => {
         try {
             await axios.delete(`${API}/clear-all`);
             setSelectedView(null);
             setSelectedRelation(null);
             clearPathfinding();
+            clearConnectionMode();
+            setOriginalImportedIds({ views: [], relations: [] });
+            setLastImportedSql('');
             await fetchData();
         } catch (err) {
             console.error('Error clearing data:', err);
             throw err;
         }
-    };
+    }, [fetchData, clearPathfinding, clearConnectionMode]);
 
     // Filter views based on search
     const filteredViews = views.filter(view => {
@@ -319,7 +439,14 @@ export const AppProvider = ({ children }) => {
         );
     });
 
+    // Get new views and relations
+    const newViews = views.filter(v => isNewView(v.view_id));
+    const newRelations = relations.filter(r => isNewRelation(r.id));
+
     const value = {
+        // React Flow instance
+        reactFlowInstance,
+        
         // Settings
         settings,
         updateSettings,
@@ -330,16 +457,23 @@ export const AppProvider = ({ children }) => {
         // Helpers
         getJoinType,
         getJoinColor,
-        formatNodeDisplay,
-        truncateName,
+        isNewView,
+        isNewRelation,
+        getNextViewId,
+        focusOnNode,
+        exportViewAsSql,
+        exportRelationAsSql,
         
         // Data
         views,
         relations,
         filteredViews,
+        newViews,
+        newRelations,
         loading,
         error,
         stats,
+        lastImportedSql,
         
         // Selection
         selectedView,
@@ -361,6 +495,13 @@ export const AppProvider = ({ children }) => {
         foundPath,
         findPath,
         clearPathfinding,
+        
+        // Connection mode
+        connectionMode,
+        setConnectionMode,
+        connectionSource,
+        setConnectionSource,
+        clearConnectionMode,
         
         // Actions
         fetchData,

@@ -17,6 +17,13 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '../ui/alert-dialog';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    DropdownMenuSeparator,
+} from '../ui/dropdown-menu';
 import { 
     Upload, 
     Plus, 
@@ -27,7 +34,10 @@ import {
     RefreshCw,
     Settings,
     Route,
-    X
+    X,
+    Download,
+    Copy,
+    Sparkles
 } from 'lucide-react';
 import { SqlImportModal } from '../modals/SqlImportModal';
 import { CreateViewModal } from '../modals/CreateViewModal';
@@ -47,7 +57,13 @@ export const Toolbar = () => {
         clearPathfinding,
         pathStart,
         pathEnd,
-        foundPath
+        foundPath,
+        newViews,
+        newRelations,
+        exportViewAsSql,
+        exportRelationAsSql,
+        views,
+        relations
     } = useApp();
     
     const [importModalOpen, setImportModalOpen] = useState(false);
@@ -84,6 +100,34 @@ export const Toolbar = () => {
             toast.info('Selecciona la vista d\'origen');
         }
     };
+
+    const handleExportNewItems = (type) => {
+        let sql = '';
+        
+        if (type === 'all' || type === 'views') {
+            newViews.forEach(v => {
+                const view = views.find(view => view.view_id === v.view_id);
+                if (view) {
+                    sql += exportViewAsSql(view, 'INSERT') + '\n';
+                }
+            });
+        }
+        
+        if (type === 'all' || type === 'relations') {
+            newRelations.forEach(r => {
+                sql += exportRelationAsSql(r, 'INSERT') + '\n';
+            });
+        }
+        
+        if (sql) {
+            navigator.clipboard.writeText(sql.trim());
+            toast.success('SQL copiat al portapapers');
+        } else {
+            toast.info('No hi ha elements nous per exportar');
+        }
+    };
+
+    const hasNewItems = newViews.length > 0 || newRelations.length > 0;
 
     return (
         <TooltipProvider>
@@ -186,6 +230,51 @@ export const Toolbar = () => {
                             </span>
                         )}
                     </div>
+                )}
+
+                <div className="w-px h-6 bg-border" />
+
+                {/* Export new items */}
+                {hasNewItems && (
+                    <DropdownMenu>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="bg-amber-500/10 border-amber-500/30 text-amber-500 hover:bg-amber-500/20"
+                                        data-testid="export-new-btn"
+                                    >
+                                        <Sparkles className="w-4 h-4 mr-2" />
+                                        Nous ({newViews.length + newRelations.length})
+                                    </Button>
+                                </DropdownMenuTrigger>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Exportar elements nous com a SQL</p>
+                            </TooltipContent>
+                        </Tooltip>
+                        <DropdownMenuContent align="start">
+                            <DropdownMenuItem onClick={() => handleExportNewItems('all')} data-testid="export-all-new">
+                                <Copy className="w-4 h-4 mr-2" />
+                                Copiar tot ({newViews.length + newRelations.length} INSERTs)
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            {newViews.length > 0 && (
+                                <DropdownMenuItem onClick={() => handleExportNewItems('views')} data-testid="export-new-views">
+                                    <Copy className="w-4 h-4 mr-2" />
+                                    Copiar vistes noves ({newViews.length})
+                                </DropdownMenuItem>
+                            )}
+                            {newRelations.length > 0 && (
+                                <DropdownMenuItem onClick={() => handleExportNewItems('relations')} data-testid="export-new-relations">
+                                    <Copy className="w-4 h-4 mr-2" />
+                                    Copiar relacions noves ({newRelations.length})
+                                </DropdownMenuItem>
+                            )}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 )}
 
                 <div className="w-px h-6 bg-border" />

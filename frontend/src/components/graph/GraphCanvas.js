@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useEffect } from 'react';
+import React, { useCallback, useMemo, useEffect, useState } from 'react';
 import ReactFlow, {
     Background,
     Controls,
@@ -10,6 +10,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import { useApp } from '../../context/AppContext';
 import { CustomNode } from './CustomNode';
+import { CreateRelationFromNodeModal } from '../modals/CreateRelationFromNodeModal';
 import { Database } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -94,7 +95,6 @@ const calculateLayout = (nodes, edges, direction = 'TB', nodeSpacing = 80, level
         const levelNodes = levelGroups.get(level);
         
         if (isHorizontal) {
-            // Left to Right layout
             const levelHeight = levelNodes.length * (nodeHeight + nodeSpacing);
             const startY = -levelHeight / 2;
 
@@ -108,7 +108,6 @@ const calculateLayout = (nodes, edges, direction = 'TB', nodeSpacing = 80, level
                 });
             });
         } else {
-            // Top to Bottom layout
             const levelWidth = levelNodes.length * (nodeWidth + nodeSpacing);
             const startX = -levelWidth / 2;
 
@@ -138,14 +137,23 @@ export const GraphCanvas = () => {
         settings,
         getJoinType,
         getJoinColor,
+        isNewRelation,
         pathfindingMode,
         setPathStart,
         setPathEnd,
         pathStart,
         pathEnd,
         foundPath,
-        findPath
+        findPath,
+        connectionMode,
+        connectionSource,
+        setConnectionSource,
+        clearConnectionMode,
+        reactFlowInstance
     } = useApp();
+
+    const [createRelationModal, setCreateRelationModal] = useState(false);
+    const [relationTargetId, setRelationTargetId] = useState(null);
 
     // Transform data to React Flow format
     const initialNodes = useMemo(() => {
@@ -168,6 +176,7 @@ export const GraphCanvas = () => {
             const joinType = getJoinType(rel.relation);
             const color = getJoinColor(rel.relation);
             const isInPath = foundPath?.edges?.includes(rel.id);
+            const isNew = isNewRelation(rel.id);
             
             return {
                 id: rel.id,
@@ -178,7 +187,8 @@ export const GraphCanvas = () => {
                 type: settings.edgeStyle,
                 style: { 
                     stroke: isInPath ? '#10B981' : color,
-                    strokeWidth: isInPath ? 3 : 2
+                    strokeWidth: isInPath ? 3 : 2,
+                    strokeDasharray: isNew ? '5,5' : undefined
                 },
                 markerEnd: {
                     type: MarkerType.ArrowClosed,
@@ -200,7 +210,7 @@ export const GraphCanvas = () => {
                 labelBgPadding: [4, 2]
             };
         });
-    }, [relations, settings, getJoinType, getJoinColor, foundPath]);
+    }, [relations, settings, getJoinType, getJoinColor, foundPath, isNewRelation]);
 
     // Apply layout
     const layoutedNodes = useMemo(() => {
@@ -224,8 +234,14 @@ export const GraphCanvas = () => {
 
     // Handle node click
     const onNodeClick = useCallback((event, node) => {
+        // Connection mode - selecting target
+        if (connectionMode && connectionSource && node.id !== connectionSource) {
+            setRelationTargetId(node.id);
+            setCreateRelationModal(true);
+            return;
+        }
+        
         if (pathfindingMode) {
-            // Pathfinding mode
             if (!pathStart) {
                 setPathStart(node.id);
                 toast.info('Selecciona la vista de destí');
@@ -241,26 +257,36 @@ export const GraphCanvas = () => {
             setSelectedView(view);
             setSelectedRelation(null);
         }
-    }, [views, setSelectedView, setSelectedRelation, pathfindingMode, pathStart, pathEnd, setPathStart, setPathEnd, findPath]);
+    }, [views, setSelectedView, setSelectedRelation, pathfindingMode, pathStart, pathEnd, setPathStart, setPathEnd, findPath, connectionMode, connectionSource]);
 
     // Handle edge click
     const onEdgeClick = useCallback((event, edge) => {
-        if (pathfindingMode) return;
+        if (pathfindingMode || connectionMode) return;
         
         const relation = relations.find(r => r.id === edge.id);
         if (relation) {
             setSelectedRelation(relation);
             setSelectedView(null);
         }
-    }, [relations, setSelectedRelation, setSelectedView, pathfindingMode]);
+    }, [relations, setSelectedRelation, setSelectedView, pathfindingMode, connectionMode]);
 
     // Handle background click
     const onPaneClick = useCallback(() => {
+        if (connectionMode) {
+            clearConnectionMode();
+            toast.info('Mode de connexió cancel·lat');
+            return;
+        }
         if (!pathfindingMode) {
             setSelectedView(null);
             setSelectedRelation(null);
         }
-    }, [setSelectedView, setSelectedRelation, pathfindingMode]);
+    }, [setSelectedView, setSelectedRelation, pathfindingMode, connectionMode, clearConnectionMode]);
+
+    // Store React Flow instance
+    const onInit = useCallback((instance) => {
+        reactFlowInstance.current = instance;
+    }, [reactFlowInstance]);
 
     // Empty state
     if (views.length === 0) {
@@ -279,42 +305,64 @@ export const GraphCanvas = () => {
     }
 
     return (
-        <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onNodeClick={onNodeClick}
-            onEdgeClick={onEdgeClick}
-            onPaneClick={onPaneClick}
-            nodeTypes={nodeTypes}
-            fitView
-            fitViewOptions={{ padding: 0.2 }}
-            minZoom={0.05}
-            maxZoom={2}
-            defaultEdgeOptions={{
-                type: settings.edgeStyle
-            }}
-        >
-            <Background 
-                color={settings.theme === 'dark' ? '#27272a' : '#e4e4e7'} 
-                gap={20} 
-                size={1}
-            />
-            <Controls 
-                showInteractive={false}
-                position="bottom-left"
-            />
-            <MiniMap 
-                nodeColor={(node) => {
-                    if (foundPath?.nodes?.includes(node.id)) return '#10B981';
-                    return settings.theme === 'dark' ? '#3f3f46' : '#d4d4d8';
+        <>
+            {connectionMode && (
+                <div className="absolute top-20 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-500 text-sm font-medium">
+                    Clica una altra vista per crear la relació
+                </div>
+            )}
+            
+            <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onNodeClick={onNodeClick}
+                onEdgeClick={onEdgeClick}
+                onPaneClick={onPaneClick}
+                onInit={onInit}
+                nodeTypes={nodeTypes}
+                fitView
+                fitViewOptions={{ padding: 0.2 }}
+                minZoom={0.05}
+                maxZoom={2}
+                defaultEdgeOptions={{
+                    type: settings.edgeStyle
                 }}
-                maskColor={settings.theme === 'dark' ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.8)'}
-                position="bottom-right"
-                pannable
-                zoomable
+            >
+                <Background 
+                    color={settings.theme === 'dark' ? '#27272a' : '#e4e4e7'} 
+                    gap={20} 
+                    size={1}
+                />
+                <Controls 
+                    showInteractive={false}
+                    position="bottom-left"
+                />
+                <MiniMap 
+                    nodeColor={(node) => {
+                        if (foundPath?.nodes?.includes(node.id)) return '#10B981';
+                        return settings.theme === 'dark' ? '#3f3f46' : '#d4d4d8';
+                    }}
+                    maskColor={settings.theme === 'dark' ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.8)'}
+                    position="bottom-right"
+                    pannable
+                    zoomable
+                />
+            </ReactFlow>
+
+            <CreateRelationFromNodeModal
+                open={createRelationModal}
+                onOpenChange={(open) => {
+                    setCreateRelationModal(open);
+                    if (!open) {
+                        clearConnectionMode();
+                        setRelationTargetId(null);
+                    }
+                }}
+                sourceId={connectionSource}
+                targetId={relationTargetId}
             />
-        </ReactFlow>
+        </>
     );
 };

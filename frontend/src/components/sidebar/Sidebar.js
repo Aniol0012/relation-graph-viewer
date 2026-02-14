@@ -3,7 +3,8 @@ import { useApp } from '../../context/AppContext';
 import { Input } from '../ui/input';
 import { ScrollArea } from '../ui/scroll-area';
 import { Badge } from '../ui/badge';
-import { Database, Search, Box, GitBranch } from 'lucide-react';
+import { Database, Search, Box, GitBranch, X, Sparkles } from 'lucide-react';
+import { Button } from '../ui/button';
 
 export const Sidebar = () => {
     const { 
@@ -18,12 +19,22 @@ export const Sidebar = () => {
         pathfindingMode,
         pathStart,
         pathEnd,
-        foundPath
+        foundPath,
+        isNewView,
+        newViews,
+        newRelations,
+        focusOnNode
     } = useApp();
 
     const handleViewClick = (view) => {
         setSelectedView(view);
         setSelectedRelation(null);
+        // Focus on the node in the graph
+        focusOnNode(view.id);
+    };
+
+    const clearSearch = () => {
+        setSearchQuery('');
     };
 
     // Get display text for a view
@@ -55,7 +66,7 @@ export const Sidebar = () => {
                 </div>
 
                 {/* Stats */}
-                <div className="flex gap-2 mb-4">
+                <div className="flex gap-2 mb-4 flex-wrap">
                     <div className="stats-badge">
                         <Box className="w-3 h-3" />
                         <span>{stats.views_count} vistes</span>
@@ -64,6 +75,12 @@ export const Sidebar = () => {
                         <GitBranch className="w-3 h-3" />
                         <span>{stats.relations_count} relacions</span>
                     </div>
+                    {(newViews.length > 0 || newRelations.length > 0) && (
+                        <div className="stats-badge bg-amber-500/20 text-amber-500">
+                            <Sparkles className="w-3 h-3" />
+                            <span>{newViews.length + newRelations.length} nous</span>
+                        </div>
+                    )}
                 </div>
 
                 {/* Pathfinding indicator */}
@@ -87,9 +104,20 @@ export const Sidebar = () => {
                         placeholder="Cercar per nom, alias o ID..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-9 bg-secondary/50 border-transparent focus:border-accent"
+                        className="pl-9 pr-9 bg-secondary/50 border-transparent focus:border-accent"
                         data-testid="search-input"
                     />
+                    {searchQuery && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                            onClick={clearSearch}
+                            data-testid="clear-search-btn"
+                        >
+                            <X className="w-4 h-4" />
+                        </Button>
+                    )}
                 </div>
             </div>
 
@@ -107,6 +135,7 @@ export const Sidebar = () => {
                             const isInPath = foundPath?.nodes?.includes(view.id);
                             const isPathStart = pathStart === view.id;
                             const isPathEnd = pathEnd === view.id;
+                            const isNew = isNewView(view.view_id);
                             
                             return (
                                 <div
@@ -115,14 +144,19 @@ export const Sidebar = () => {
                                     onClick={() => handleViewClick(view)}
                                     data-testid={`view-item-${view.view_id}`}
                                     style={{
-                                        borderLeftColor: isInPath ? '#10B981' : undefined,
-                                        backgroundColor: isInPath ? 'rgba(16, 185, 129, 0.1)' : undefined
+                                        borderLeftColor: isNew ? '#F59E0B' : (isInPath ? '#10B981' : undefined),
+                                        backgroundColor: isInPath ? 'rgba(16, 185, 129, 0.1)' : (isNew ? 'rgba(245, 158, 11, 0.05)' : undefined)
                                     }}
                                 >
                                     <div className="flex items-center gap-2">
                                         <span className="font-medium truncate flex-1">
                                             {getDisplayText(view)}
                                         </span>
+                                        {isNew && (
+                                            <Badge variant="outline" className="text-[10px] px-1 py-0 bg-amber-500/20 text-amber-500 border-amber-500/30">
+                                                NOU
+                                            </Badge>
+                                        )}
                                         {isPathStart && (
                                             <Badge variant="outline" className="text-[10px] px-1 py-0 bg-green-500/20 text-green-500 border-green-500/30">
                                                 INICI

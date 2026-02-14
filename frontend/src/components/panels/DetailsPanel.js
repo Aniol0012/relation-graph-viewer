@@ -5,6 +5,13 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Badge } from '../ui/badge';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    DropdownMenuSeparator,
+} from '../ui/dropdown-menu';
 import { 
     X, 
     Edit2, 
@@ -12,7 +19,10 @@ import {
     Save, 
     Box, 
     GitBranch,
-    ArrowRight
+    ArrowRight,
+    Download,
+    Copy,
+    Sparkles
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -29,7 +39,10 @@ export const DetailsPanel = () => {
         views,
         getJoinType,
         getJoinColor,
-        settings
+        isNewView,
+        isNewRelation,
+        exportViewAsSql,
+        exportRelationAsSql
     } = useApp();
 
     const [isEditing, setIsEditing] = useState(false);
@@ -87,6 +100,17 @@ export const DetailsPanel = () => {
         }
     };
 
+    const handleCopySql = (type) => {
+        let sql = '';
+        if (selectedView) {
+            sql = exportViewAsSql(selectedView, type);
+        } else if (selectedRelation) {
+            sql = exportRelationAsSql(selectedRelation, type);
+        }
+        navigator.clipboard.writeText(sql);
+        toast.success(`SQL ${type} copiat al portapapers`);
+    };
+
     if (!selectedView && !selectedRelation) return null;
 
     // Find related views for relation
@@ -100,6 +124,11 @@ export const DetailsPanel = () => {
     // Get join info
     const joinType = selectedRelation ? getJoinType(selectedRelation.relation) : null;
     const joinColor = selectedRelation ? getJoinColor(selectedRelation.relation) : null;
+
+    // Check if new
+    const isNew = selectedView 
+        ? isNewView(selectedView.view_id) 
+        : (selectedRelation ? isNewRelation(selectedRelation.id) : false);
 
     return (
         <div className="details-panel animate-slide-in-right" data-testid="details-panel">
@@ -124,6 +153,12 @@ export const DetailsPanel = () => {
                             }}
                         >
                             {joinType}
+                        </Badge>
+                    )}
+                    {isNew && (
+                        <Badge variant="outline" className="text-xs bg-amber-500/20 text-amber-500 border-amber-500/30">
+                            <Sparkles className="w-3 h-3 mr-1" />
+                            NOU
                         </Badge>
                     )}
                 </div>
@@ -340,6 +375,26 @@ export const DetailsPanel = () => {
                             <Edit2 className="w-4 h-4 mr-2" />
                             Editar
                         </Button>
+                        
+                        {/* Export dropdown */}
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" data-testid="export-sql-btn">
+                                    <Download className="w-4 h-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleCopySql('INSERT')} data-testid="export-insert-btn">
+                                    <Copy className="w-4 h-4 mr-2" />
+                                    Copiar INSERT
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleCopySql('UPDATE')} data-testid="export-update-btn">
+                                    <Copy className="w-4 h-4 mr-2" />
+                                    Copiar UPDATE
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+
                         <Button
                             variant="destructive"
                             onClick={handleDelete}

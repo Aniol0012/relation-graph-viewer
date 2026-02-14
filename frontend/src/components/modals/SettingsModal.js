@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
     Dialog,
@@ -26,17 +26,29 @@ import { toast } from 'sonner';
 
 export const SettingsModal = ({ open, onOpenChange }) => {
     const { settings, updateSettings, resetSettings, defaultSettings } = useApp();
+    const [localSettings, setLocalSettings] = useState(settings);
+
+    // Sync local state when modal opens
+    React.useEffect(() => {
+        if (open) {
+            setLocalSettings(settings);
+        }
+    }, [open, settings]);
+
+    const handleChange = (key, value) => {
+        setLocalSettings(prev => ({ ...prev, [key]: value }));
+        // Apply immediately
+        updateSettings({ [key]: value });
+    };
 
     const handleColorChange = (joinType, color) => {
-        updateSettings({
-            joinColors: {
-                ...settings.joinColors,
-                [joinType]: color
-            }
-        });
+        const newColors = { ...localSettings.joinColors, [joinType]: color };
+        setLocalSettings(prev => ({ ...prev, joinColors: newColors }));
+        updateSettings({ joinColors: newColors });
     };
 
     const handleReset = () => {
+        setLocalSettings(defaultSettings);
         resetSettings();
         toast.success('Configuració restablerta');
     };
@@ -92,8 +104,8 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                                         <p className="text-xs text-muted-foreground">Mostra l'ID de la vista al node</p>
                                     </div>
                                     <Switch
-                                        checked={settings.showViewId}
-                                        onCheckedChange={(checked) => updateSettings({ showViewId: checked })}
+                                        checked={localSettings.showViewId}
+                                        onCheckedChange={(checked) => handleChange('showViewId', checked)}
                                         data-testid="toggle-show-id"
                                     />
                                 </div>
@@ -104,18 +116,18 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                                         <p className="text-xs text-muted-foreground">Mostra el nom sota l'alias</p>
                                     </div>
                                     <Switch
-                                        checked={settings.showAlias}
-                                        onCheckedChange={(checked) => updateSettings({ showAlias: checked })}
+                                        checked={localSettings.showAlias}
+                                        onCheckedChange={(checked) => handleChange('showAlias', checked)}
                                         data-testid="toggle-show-alias"
                                     />
                                 </div>
 
                                 <div>
                                     <Label>Longitud màxima del nom</Label>
-                                    <p className="text-xs text-muted-foreground mb-2">Caràcters: {settings.maxNodeNameLength}</p>
+                                    <p className="text-xs text-muted-foreground mb-2">Caràcters: {localSettings.maxNodeNameLength}</p>
                                     <Slider
-                                        value={[settings.maxNodeNameLength]}
-                                        onValueChange={([val]) => updateSettings({ maxNodeNameLength: val })}
+                                        value={[localSettings.maxNodeNameLength]}
+                                        onValueChange={([val]) => handleChange('maxNodeNameLength', val)}
                                         min={10}
                                         max={40}
                                         step={1}
@@ -126,8 +138,8 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                                 <div>
                                     <Label>Mida dels nodes</Label>
                                     <Select
-                                        value={settings.nodeSize}
-                                        onValueChange={(val) => updateSettings({ nodeSize: val })}
+                                        value={localSettings.nodeSize}
+                                        onValueChange={(val) => handleChange('nodeSize', val)}
                                     >
                                         <SelectTrigger className="mt-1" data-testid="select-node-size">
                                             <SelectValue />
@@ -150,8 +162,8 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                                         <p className="text-xs text-muted-foreground">Etiqueta a les arestes</p>
                                     </div>
                                     <Switch
-                                        checked={settings.showEdgeLabels}
-                                        onCheckedChange={(checked) => updateSettings({ showEdgeLabels: checked })}
+                                        checked={localSettings.showEdgeLabels}
+                                        onCheckedChange={(checked) => handleChange('showEdgeLabels', checked)}
                                         data-testid="toggle-edge-labels"
                                     />
                                 </div>
@@ -162,8 +174,8 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                                         <p className="text-xs text-muted-foreground">Animació de flux</p>
                                     </div>
                                     <Switch
-                                        checked={settings.animatedEdges}
-                                        onCheckedChange={(checked) => updateSettings({ animatedEdges: checked })}
+                                        checked={localSettings.animatedEdges}
+                                        onCheckedChange={(checked) => handleChange('animatedEdges', checked)}
                                         data-testid="toggle-animated-edges"
                                     />
                                 </div>
@@ -171,8 +183,8 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                                 <div>
                                     <Label>Estil de les arestes</Label>
                                     <Select
-                                        value={settings.edgeStyle}
-                                        onValueChange={(val) => updateSettings({ edgeStyle: val })}
+                                        value={localSettings.edgeStyle}
+                                        onValueChange={(val) => handleChange('edgeStyle', val)}
                                     >
                                         <SelectTrigger className="mt-1" data-testid="select-edge-style">
                                             <SelectValue />
@@ -192,8 +204,8 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                                 <div>
                                     <Label>Mode de color</Label>
                                     <Select
-                                        value={settings.theme}
-                                        onValueChange={(val) => updateSettings({ theme: val })}
+                                        value={localSettings.theme}
+                                        onValueChange={(val) => handleChange('theme', val)}
                                     >
                                         <SelectTrigger className="mt-1" data-testid="select-theme">
                                             <SelectValue />
@@ -218,13 +230,13 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                                     <div className="flex items-center gap-3">
                                         <div 
                                             className="w-4 h-4 rounded-full border"
-                                            style={{ backgroundColor: settings.joinColors[key] }}
+                                            style={{ backgroundColor: localSettings.joinColors[key] }}
                                         />
                                         <Label className="text-sm">{label}</Label>
                                     </div>
                                     <Input
                                         type="color"
-                                        value={settings.joinColors[key]}
+                                        value={localSettings.joinColors[key]}
                                         onChange={(e) => handleColorChange(key, e.target.value)}
                                         className="w-16 h-8 p-1 cursor-pointer"
                                         data-testid={`color-${key.replace(' ', '-').toLowerCase()}`}
@@ -239,7 +251,7 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                                         <div key={key} className="flex items-center gap-2 text-xs">
                                             <div 
                                                 className="w-3 h-3 rounded-full"
-                                                style={{ backgroundColor: settings.joinColors[key] }}
+                                                style={{ backgroundColor: localSettings.joinColors[key] }}
                                             />
                                             <span className="text-muted-foreground">{label}</span>
                                         </div>
@@ -254,8 +266,8 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                                 <Label>Direcció del layout</Label>
                                 <p className="text-xs text-muted-foreground mb-2">Com s'organitzen els nodes</p>
                                 <Select
-                                    value={settings.layoutDirection}
-                                    onValueChange={(val) => updateSettings({ layoutDirection: val })}
+                                    value={localSettings.layoutDirection}
+                                    onValueChange={(val) => handleChange('layoutDirection', val)}
                                 >
                                     <SelectTrigger data-testid="select-layout-direction">
                                         <SelectValue />
@@ -269,10 +281,10 @@ export const SettingsModal = ({ open, onOpenChange }) => {
 
                             <div>
                                 <Label>Espaiat entre nodes</Label>
-                                <p className="text-xs text-muted-foreground mb-2">{settings.nodeSpacing}px</p>
+                                <p className="text-xs text-muted-foreground mb-2">{localSettings.nodeSpacing}px</p>
                                 <Slider
-                                    value={[settings.nodeSpacing]}
-                                    onValueChange={([val]) => updateSettings({ nodeSpacing: val })}
+                                    value={[localSettings.nodeSpacing]}
+                                    onValueChange={([val]) => handleChange('nodeSpacing', val)}
                                     min={40}
                                     max={200}
                                     step={10}
@@ -282,10 +294,10 @@ export const SettingsModal = ({ open, onOpenChange }) => {
 
                             <div>
                                 <Label>Espaiat entre nivells</Label>
-                                <p className="text-xs text-muted-foreground mb-2">{settings.levelSpacing}px</p>
+                                <p className="text-xs text-muted-foreground mb-2">{localSettings.levelSpacing}px</p>
                                 <Slider
-                                    value={[settings.levelSpacing]}
-                                    onValueChange={([val]) => updateSettings({ levelSpacing: val })}
+                                    value={[localSettings.levelSpacing]}
+                                    onValueChange={([val]) => handleChange('levelSpacing', val)}
                                     min={60}
                                     max={300}
                                     step={10}

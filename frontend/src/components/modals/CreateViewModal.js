@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
     Dialog,
@@ -10,11 +10,11 @@ import {
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { Plus, Loader2 } from 'lucide-react';
+import { Plus, Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
 export const CreateViewModal = ({ open, onOpenChange }) => {
-    const { createView } = useApp();
+    const { createView, getNextViewId } = useApp();
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
         view_id: '',
@@ -22,6 +22,17 @@ export const CreateViewModal = ({ open, onOpenChange }) => {
         name2: '',
         alias: ''
     });
+
+    // Auto-suggest next ID when modal opens
+    useEffect(() => {
+        if (open) {
+            const nextId = getNextViewId();
+            setFormData(prev => ({
+                ...prev,
+                view_id: String(nextId)
+            }));
+        }
+    }, [open, getNextViewId]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -60,6 +71,7 @@ export const CreateViewModal = ({ open, onOpenChange }) => {
                     <DialogTitle className="font-heading flex items-center gap-2">
                         <Plus className="w-5 h-5" />
                         Crear Nova Vista
+                        <Sparkles className="w-4 h-4 text-amber-500" />
                     </DialogTitle>
                     <DialogDescription>
                         Afegeix una nova vista a l'estructura
@@ -69,16 +81,29 @@ export const CreateViewModal = ({ open, onOpenChange }) => {
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
                         <Label htmlFor="view_id">View ID *</Label>
-                        <Input
-                            id="view_id"
-                            type="number"
-                            value={formData.view_id}
-                            onChange={(e) => setFormData({...formData, view_id: e.target.value})}
-                            placeholder="Ex: 1234"
-                            className="mt-1"
-                            required
-                            data-testid="create-view-id-input"
-                        />
+                        <div className="flex gap-2 mt-1">
+                            <Input
+                                id="view_id"
+                                type="number"
+                                value={formData.view_id}
+                                onChange={(e) => setFormData({...formData, view_id: e.target.value})}
+                                placeholder="Ex: 1234"
+                                required
+                                data-testid="create-view-id-input"
+                            />
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setFormData({...formData, view_id: String(getNextViewId())})}
+                                data-testid="suggest-id-btn"
+                            >
+                                Suggerir
+                            </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            Suggerit: MAX(ViewId) + 1
+                        </p>
                     </div>
 
                     <div>
@@ -95,7 +120,7 @@ export const CreateViewModal = ({ open, onOpenChange }) => {
                     </div>
 
                     <div>
-                        <Label htmlFor="name2">Name2</Label>
+                        <Label htmlFor="name2">Name2 (amb schema)</Label>
                         <Input
                             id="name2"
                             value={formData.name2}
