@@ -37,13 +37,14 @@
     position: relative;
 }
 
-/* Custom Node */
+/* Custom Node - Enhanced shadows */
 .custom-node {
     border-radius: 8px;
     text-align: center;
     cursor: grab;
     transition: box-shadow 0.2s ease, transform 0.1s ease, border-color 0.2s ease;
     border: 2px solid transparent;
+    position: relative;
 }
 
 .custom-node:hover {
@@ -52,28 +53,55 @@
 
 .custom-node.selected {
     border-color: hsl(var(--accent));
-    box-shadow: 0 0 0 2px hsl(var(--accent) / 0.3);
 }
 
 .dark .custom-node {
     background: hsl(var(--secondary));
     color: hsl(var(--foreground));
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    box-shadow: 
+        0 4px 6px -1px rgba(0, 0, 0, 0.4),
+        0 2px 4px -2px rgba(0, 0, 0, 0.3),
+        0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.dark .custom-node:hover {
+    box-shadow: 
+        0 10px 15px -3px rgba(0, 0, 0, 0.5),
+        0 4px 6px -4px rgba(0, 0, 0, 0.4),
+        0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.dark .custom-node.selected {
+    box-shadow: 
+        0 10px 15px -3px rgba(0, 0, 0, 0.5),
+        0 4px 6px -4px rgba(0, 0, 0, 0.4),
+        0 0 0 2px hsl(var(--accent) / 0.5);
 }
 
 .light .custom-node, :root:not(.dark) .custom-node {
     background: white;
     color: hsl(var(--foreground));
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 
+        0 4px 6px -1px rgba(0, 0, 0, 0.15),
+        0 2px 4px -2px rgba(0, 0, 0, 0.1),
+        0 0 0 1px rgba(0, 0, 0, 0.05);
 }
 
-/* Details Panel */
+.light .custom-node:hover, :root:not(.dark) .custom-node:hover {
+    box-shadow: 
+        0 10px 15px -3px rgba(0, 0, 0, 0.2),
+        0 4px 6px -4px rgba(0, 0, 0, 0.15),
+        0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+
+/* Details Panel - Resizable */
 .details-panel {
     position: absolute;
     right: 0;
     top: 0;
     height: 100%;
-    width: 380px;
+    min-width: 300px;
+    max-width: 600px;
     background: hsl(var(--background) / 0.95);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
@@ -186,4 +214,9 @@ input[type="color"]::-webkit-color-swatch-wrapper {
 input[type="color"]::-webkit-color-swatch {
     border-radius: 3px;
     border: none;
+}
+
+/* Resize handle cursor */
+.cursor-ew-resize {
+    cursor: ew-resize;
 }

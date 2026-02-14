@@ -189,7 +189,7 @@ h1, h2, h3, h4, h5, h6, .font-heading {
     animation: fadeIn 0.2s ease-out;
 }
 
-/* Node handles */
+/* Node handles - small default */
 .node-handle {
     width: 8px !important;
     height: 8px !important;
@@ -199,7 +199,23 @@ h1, h2, h3, h4, h5, h6, .font-heading {
     transition: opacity 0.2s ease;
 }
 
-.react-flow__node:hover .node-handle {
+/* Node handles - large for better connectivity */
+.node-handle-large {
+    width: 16px !important;
+    height: 16px !important;
+    background: hsl(var(--accent)) !important;
+    border: 2px solid hsl(var(--background)) !important;
+    opacity: 0.7;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.node-handle-large:hover {
+    opacity: 1;
+    transform: scale(1.2);
+}
+
+.react-flow__node:hover .node-handle,
+.react-flow__node:hover .node-handle-large {
     opacity: 1;
 }
 
@@ -280,4 +296,15 @@ h1, h2, h3, h4, h5, h6, .font-heading {
 /* New item indicator */
 .custom-node .absolute {
     z-index: 10;
+}
+
+/* Filter selected items */
+.view-list-item.filter-selected {
+    background: rgba(59, 130, 246, 0.15) !important;
+    border-left-color: #3B82F6 !important;
+}
+
+/* Suppress ResizeObserver errors */
+.resize-observer-error-suppressed {
+    display: none;
 }
