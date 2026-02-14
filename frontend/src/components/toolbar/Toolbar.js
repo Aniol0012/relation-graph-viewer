@@ -24,19 +24,36 @@ import {
     Trash2, 
     Sun, 
     Moon,
-    RefreshCw
+    RefreshCw,
+    Settings,
+    Route,
+    X
 } from 'lucide-react';
 import { SqlImportModal } from '../modals/SqlImportModal';
 import { CreateViewModal } from '../modals/CreateViewModal';
 import { CreateRelationModal } from '../modals/CreateRelationModal';
+import { SettingsModal } from '../modals/SettingsModal';
 import { toast } from 'sonner';
 
 export const Toolbar = () => {
-    const { theme, toggleTheme, clearAllData, fetchData, loading } = useApp();
+    const { 
+        settings,
+        toggleTheme, 
+        clearAllData, 
+        fetchData, 
+        loading,
+        pathfindingMode,
+        setPathfindingMode,
+        clearPathfinding,
+        pathStart,
+        pathEnd,
+        foundPath
+    } = useApp();
     
     const [importModalOpen, setImportModalOpen] = useState(false);
     const [createViewModalOpen, setCreateViewModalOpen] = useState(false);
     const [createRelationModalOpen, setCreateRelationModalOpen] = useState(false);
+    const [settingsModalOpen, setSettingsModalOpen] = useState(false);
     const [clearDialogOpen, setClearDialogOpen] = useState(false);
 
     const handleClearAll = async () => {
@@ -55,6 +72,16 @@ export const Toolbar = () => {
             toast.success('Dades actualitzades');
         } catch (err) {
             toast.error('Error actualitzant');
+        }
+    };
+
+    const handlePathfindingToggle = () => {
+        if (pathfindingMode) {
+            clearPathfinding();
+            toast.info('Mode de cerca de camí desactivat');
+        } else {
+            setPathfindingMode(true);
+            toast.info('Selecciona la vista d\'origen');
         }
     };
 
@@ -115,6 +142,54 @@ export const Toolbar = () => {
 
                 <div className="w-px h-6 bg-border" />
 
+                {/* Pathfinding */}
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button
+                            variant={pathfindingMode ? "default" : "outline"}
+                            size="sm"
+                            onClick={handlePathfindingToggle}
+                            className={pathfindingMode ? "bg-accent text-accent-foreground" : ""}
+                            data-testid="pathfinding-btn"
+                        >
+                            {pathfindingMode ? (
+                                <>
+                                    <X className="w-4 h-4 mr-2" />
+                                    Cancel·lar
+                                </>
+                            ) : (
+                                <>
+                                    <Route className="w-4 h-4 mr-2" />
+                                    Trobar camí
+                                </>
+                            )}
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        <p>Cerca el camí entre dues vistes</p>
+                    </TooltipContent>
+                </Tooltip>
+
+                {/* Path info */}
+                {pathfindingMode && (
+                    <div className="flex items-center gap-2 px-2 py-1 rounded bg-secondary/50 text-xs">
+                        {!pathStart && <span className="text-muted-foreground">Selecciona origen...</span>}
+                        {pathStart && !pathEnd && <span className="text-muted-foreground">Selecciona destí...</span>}
+                        {foundPath && !foundPath.notFound && (
+                            <span className="text-green-500 font-medium">
+                                Camí trobat! ({foundPath.nodes?.length} nodes)
+                            </span>
+                        )}
+                        {foundPath?.notFound && (
+                            <span className="text-red-500 font-medium">
+                                No hi ha camí
+                            </span>
+                        )}
+                    </div>
+                )}
+
+                <div className="w-px h-6 bg-border" />
+
                 {/* Refresh */}
                 <Tooltip>
                     <TooltipTrigger asChild>
@@ -152,6 +227,23 @@ export const Toolbar = () => {
 
                 <div className="w-px h-6 bg-border" />
 
+                {/* Settings */}
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setSettingsModalOpen(true)}
+                            data-testid="settings-btn"
+                        >
+                            <Settings className="w-4 h-4" />
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        <p>Configuració</p>
+                    </TooltipContent>
+                </Tooltip>
+
                 {/* Theme Toggle */}
                 <Tooltip>
                     <TooltipTrigger asChild>
@@ -161,7 +253,7 @@ export const Toolbar = () => {
                             onClick={toggleTheme}
                             data-testid="theme-toggle-btn"
                         >
-                            {theme === 'dark' ? (
+                            {settings.theme === 'dark' ? (
                                 <Sun className="w-4 h-4" />
                             ) : (
                                 <Moon className="w-4 h-4" />
@@ -169,7 +261,7 @@ export const Toolbar = () => {
                         </Button>
                     </TooltipTrigger>
                     <TooltipContent>
-                        <p>{theme === 'dark' ? 'Canviar a mode clar' : 'Canviar a mode fosc'}</p>
+                        <p>{settings.theme === 'dark' ? 'Canviar a mode clar' : 'Canviar a mode fosc'}</p>
                     </TooltipContent>
                 </Tooltip>
 
@@ -185,6 +277,10 @@ export const Toolbar = () => {
                 <CreateRelationModal 
                     open={createRelationModalOpen} 
                     onOpenChange={setCreateRelationModalOpen} 
+                />
+                <SettingsModal
+                    open={settingsModalOpen}
+                    onOpenChange={setSettingsModalOpen}
                 />
 
                 {/* Clear Confirmation Dialog */}

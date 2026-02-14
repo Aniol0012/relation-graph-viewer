@@ -2,6 +2,7 @@ import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { Input } from '../ui/input';
 import { ScrollArea } from '../ui/scroll-area';
+import { Badge } from '../ui/badge';
 import { Database, Search, Box, GitBranch } from 'lucide-react';
 
 export const Sidebar = () => {
@@ -12,12 +13,27 @@ export const Sidebar = () => {
         selectedView,
         setSelectedView,
         setSelectedRelation,
-        stats
+        stats,
+        settings,
+        pathfindingMode,
+        pathStart,
+        pathEnd,
+        foundPath
     } = useApp();
 
     const handleViewClick = (view) => {
         setSelectedView(view);
         setSelectedRelation(null);
+    };
+
+    // Get display text for a view
+    const getDisplayText = (view) => {
+        const maxLen = settings.maxNodeNameLength;
+        let name = view.alias || view.name || `View_${view.view_id}`;
+        if (name.length > maxLen) {
+            name = name.substring(0, maxLen - 2) + '..';
+        }
+        return name;
     };
 
     return (
@@ -50,6 +66,19 @@ export const Sidebar = () => {
                     </div>
                 </div>
 
+                {/* Pathfinding indicator */}
+                {pathfindingMode && (
+                    <div className="mb-4 p-2 rounded-lg bg-accent/10 border border-accent/20">
+                        <div className="text-xs font-medium text-accent mb-1">Mode cerca de camí</div>
+                        <div className="text-xs text-muted-foreground">
+                            {!pathStart && 'Clica una vista per marcar l\'origen'}
+                            {pathStart && !pathEnd && 'Clica una altra vista per marcar el destí'}
+                            {foundPath && !foundPath.notFound && `Camí: ${foundPath.nodes?.length} nodes`}
+                            {foundPath?.notFound && 'No s\'ha trobat cap camí'}
+                        </div>
+                    </div>
+                )}
+
                 {/* Search */}
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -74,31 +103,77 @@ export const Sidebar = () => {
                                 : 'No hi ha vistes carregades'}
                         </div>
                     ) : (
-                        filteredViews.map(view => (
-                            <div
-                                key={view.id}
-                                className={`view-list-item ${selectedView?.id === view.id ? 'selected' : ''}`}
-                                onClick={() => handleViewClick(view)}
-                                data-testid={`view-item-${view.view_id}`}
-                            >
-                                <div className="font-medium truncate">
-                                    {view.display_name}
-                                </div>
-                                <div className="flex items-center gap-2 mt-1">
-                                    <span className="text-xs text-muted-foreground font-mono">
-                                        ID: {view.view_id}
-                                    </span>
-                                    {view.alias && view.alias !== view.name && (
-                                        <span className="text-xs px-1.5 py-0.5 rounded bg-accent/10 text-accent">
-                                            alias
+                        filteredViews.map(view => {
+                            const isInPath = foundPath?.nodes?.includes(view.id);
+                            const isPathStart = pathStart === view.id;
+                            const isPathEnd = pathEnd === view.id;
+                            
+                            return (
+                                <div
+                                    key={view.id}
+                                    className={`view-list-item ${selectedView?.id === view.id ? 'selected' : ''} ${isInPath ? 'path-item' : ''}`}
+                                    onClick={() => handleViewClick(view)}
+                                    data-testid={`view-item-${view.view_id}`}
+                                    style={{
+                                        borderLeftColor: isInPath ? '#10B981' : undefined,
+                                        backgroundColor: isInPath ? 'rgba(16, 185, 129, 0.1)' : undefined
+                                    }}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium truncate flex-1">
+                                            {getDisplayText(view)}
                                         </span>
+                                        {isPathStart && (
+                                            <Badge variant="outline" className="text-[10px] px-1 py-0 bg-green-500/20 text-green-500 border-green-500/30">
+                                                INICI
+                                            </Badge>
+                                        )}
+                                        {isPathEnd && (
+                                            <Badge variant="outline" className="text-[10px] px-1 py-0 bg-blue-500/20 text-blue-500 border-blue-500/30">
+                                                FI
+                                            </Badge>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-xs text-muted-foreground font-mono">
+                                            #{view.view_id}
+                                        </span>
+                                        {view.alias && view.alias !== view.name && (
+                                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                                alias
+                                            </Badge>
+                                        )}
+                                    </div>
+                                    {/* Show original name if using alias */}
+                                    {settings.showAlias && view.alias && view.name !== view.alias && (
+                                        <div className="text-[10px] text-muted-foreground/70 mt-0.5 truncate">
+                                            {view.name}
+                                        </div>
                                     )}
                                 </div>
-                            </div>
-                        ))
+                            );
+                        })
                     )}
                 </div>
             </ScrollArea>
+
+            {/* Color Legend */}
+            <div className="p-3 border-t border-border">
+                <div className="text-xs font-medium mb-2 text-muted-foreground">Llegenda de JOINs</div>
+                <div className="grid grid-cols-2 gap-1">
+                    {Object.entries(settings.joinColors).slice(0, 6).map(([type, color]) => (
+                        <div key={type} className="flex items-center gap-1.5">
+                            <div 
+                                className="w-2.5 h-2.5 rounded-full"
+                                style={{ backgroundColor: color }}
+                            />
+                            <span className="text-[10px] text-muted-foreground truncate">
+                                {type}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            </div>
         </div>
     );
 };

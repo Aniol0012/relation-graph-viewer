@@ -11,15 +11,18 @@ import 'reactflow/dist/style.css';
 import { useApp } from '../../context/AppContext';
 import { CustomNode } from './CustomNode';
 import { Database } from 'lucide-react';
+import { toast } from 'sonner';
 
 const nodeTypes = {
     custom: CustomNode
 };
 
-// Layout algorithm - arrange nodes in a grid-like pattern
-const calculateLayout = (nodes, edges) => {
+// Layout algorithm with direction support
+const calculateLayout = (nodes, edges, direction = 'TB', nodeSpacing = 80, levelSpacing = 120) => {
     if (nodes.length === 0) return [];
 
+    const isHorizontal = direction === 'LR';
+    
     // Create adjacency map
     const adjacency = new Map();
     nodes.forEach(n => adjacency.set(n.id, { in: [], out: [] }));
@@ -82,27 +85,43 @@ const calculateLayout = (nodes, edges) => {
 
     // Position nodes
     const nodeWidth = 180;
-    const nodeHeight = 80;
-    const horizontalSpacing = 60;
-    const verticalSpacing = 100;
+    const nodeHeight = 70;
 
     const positionedNodes = [];
     const sortedLevels = Array.from(levelGroups.keys()).sort((a, b) => a - b);
     
     sortedLevels.forEach(level => {
         const levelNodes = levelGroups.get(level);
-        const levelWidth = levelNodes.length * (nodeWidth + horizontalSpacing);
-        const startX = -levelWidth / 2;
+        
+        if (isHorizontal) {
+            // Left to Right layout
+            const levelHeight = levelNodes.length * (nodeHeight + nodeSpacing);
+            const startY = -levelHeight / 2;
 
-        levelNodes.forEach((node, idx) => {
-            positionedNodes.push({
-                ...node,
-                position: {
-                    x: startX + idx * (nodeWidth + horizontalSpacing),
-                    y: level * (nodeHeight + verticalSpacing)
-                }
+            levelNodes.forEach((node, idx) => {
+                positionedNodes.push({
+                    ...node,
+                    position: {
+                        x: level * (nodeWidth + levelSpacing),
+                        y: startY + idx * (nodeHeight + nodeSpacing)
+                    }
+                });
             });
-        });
+        } else {
+            // Top to Bottom layout
+            const levelWidth = levelNodes.length * (nodeWidth + nodeSpacing);
+            const startX = -levelWidth / 2;
+
+            levelNodes.forEach((node, idx) => {
+                positionedNodes.push({
+                    ...node,
+                    position: {
+                        x: startX + idx * (nodeWidth + nodeSpacing),
+                        y: level * (nodeHeight + levelSpacing)
+                    }
+                });
+            });
+        }
     });
 
     return positionedNodes;
@@ -116,7 +135,16 @@ export const GraphCanvas = () => {
         setSelectedView,
         selectedRelation,
         setSelectedRelation,
-        theme 
+        settings,
+        getJoinType,
+        getJoinColor,
+        pathfindingMode,
+        setPathStart,
+        setPathEnd,
+        pathStart,
+        pathEnd,
+        foundPath,
+        findPath
     } = useApp();
 
     // Transform data to React Flow format
@@ -125,6 +153,7 @@ export const GraphCanvas = () => {
             id: view.id,
             type: 'custom',
             data: {
+                id: view.id,
                 display_name: view.display_name,
                 view_id: view.view_id,
                 name: view.name,
@@ -135,36 +164,54 @@ export const GraphCanvas = () => {
     }, [views]);
 
     const initialEdges = useMemo(() => {
-        return relations.map(rel => ({
-            id: rel.id,
-            source: rel.source,
-            target: rel.target,
-            data: rel,
-            animated: false,
-            style: { 
-                stroke: 'hsl(var(--accent))',
-                strokeWidth: 2
-            },
-            markerEnd: {
-                type: MarkerType.ArrowClosed,
-                color: 'hsl(var(--accent))'
-            },
-            label: rel.relation?.split(' ')[1] || '',
-            labelStyle: {
-                fontSize: 10,
-                fill: 'hsl(var(--muted-foreground))'
-            },
-            labelBgStyle: {
-                fill: 'hsl(var(--background))',
-                fillOpacity: 0.8
-            }
-        }));
-    }, [relations]);
+        return relations.map(rel => {
+            const joinType = getJoinType(rel.relation);
+            const color = getJoinColor(rel.relation);
+            const isInPath = foundPath?.edges?.includes(rel.id);
+            
+            return {
+                id: rel.id,
+                source: rel.source,
+                target: rel.target,
+                data: rel,
+                animated: settings.animatedEdges || isInPath,
+                type: settings.edgeStyle,
+                style: { 
+                    stroke: isInPath ? '#10B981' : color,
+                    strokeWidth: isInPath ? 3 : 2
+                },
+                markerEnd: {
+                    type: MarkerType.ArrowClosed,
+                    color: isInPath ? '#10B981' : color,
+                    width: 20,
+                    height: 20
+                },
+                label: settings.showEdgeLabels ? joinType : '',
+                labelStyle: {
+                    fontSize: 9,
+                    fontWeight: 600,
+                    fill: isInPath ? '#10B981' : color,
+                    textTransform: 'uppercase'
+                },
+                labelBgStyle: {
+                    fill: 'hsl(var(--background))',
+                    fillOpacity: 0.9
+                },
+                labelBgPadding: [4, 2]
+            };
+        });
+    }, [relations, settings, getJoinType, getJoinColor, foundPath]);
 
     // Apply layout
     const layoutedNodes = useMemo(() => {
-        return calculateLayout(initialNodes, initialEdges);
-    }, [initialNodes, initialEdges]);
+        return calculateLayout(
+            initialNodes, 
+            initialEdges,
+            settings.layoutDirection,
+            settings.nodeSpacing,
+            settings.levelSpacing
+        );
+    }, [initialNodes, initialEdges, settings.layoutDirection, settings.nodeSpacing, settings.levelSpacing]);
 
     const [nodes, setNodes, onNodesChange] = useNodesState(layoutedNodes);
     const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -177,27 +224,43 @@ export const GraphCanvas = () => {
 
     // Handle node click
     const onNodeClick = useCallback((event, node) => {
+        if (pathfindingMode) {
+            // Pathfinding mode
+            if (!pathStart) {
+                setPathStart(node.id);
+                toast.info('Selecciona la vista de destí');
+            } else if (!pathEnd && node.id !== pathStart) {
+                setPathEnd(node.id);
+                findPath(pathStart, node.id);
+            }
+            return;
+        }
+        
         const view = views.find(v => v.id === node.id);
         if (view) {
             setSelectedView(view);
             setSelectedRelation(null);
         }
-    }, [views, setSelectedView, setSelectedRelation]);
+    }, [views, setSelectedView, setSelectedRelation, pathfindingMode, pathStart, pathEnd, setPathStart, setPathEnd, findPath]);
 
     // Handle edge click
     const onEdgeClick = useCallback((event, edge) => {
+        if (pathfindingMode) return;
+        
         const relation = relations.find(r => r.id === edge.id);
         if (relation) {
             setSelectedRelation(relation);
             setSelectedView(null);
         }
-    }, [relations, setSelectedRelation, setSelectedView]);
+    }, [relations, setSelectedRelation, setSelectedView, pathfindingMode]);
 
     // Handle background click
     const onPaneClick = useCallback(() => {
-        setSelectedView(null);
-        setSelectedRelation(null);
-    }, [setSelectedView, setSelectedRelation]);
+        if (!pathfindingMode) {
+            setSelectedView(null);
+            setSelectedRelation(null);
+        }
+    }, [setSelectedView, setSelectedRelation, pathfindingMode]);
 
     // Empty state
     if (views.length === 0) {
@@ -227,14 +290,14 @@ export const GraphCanvas = () => {
             nodeTypes={nodeTypes}
             fitView
             fitViewOptions={{ padding: 0.2 }}
-            minZoom={0.1}
+            minZoom={0.05}
             maxZoom={2}
             defaultEdgeOptions={{
-                type: 'smoothstep'
+                type: settings.edgeStyle
             }}
         >
             <Background 
-                color={theme === 'dark' ? '#27272a' : '#e4e4e7'} 
+                color={settings.theme === 'dark' ? '#27272a' : '#e4e4e7'} 
                 gap={20} 
                 size={1}
             />
@@ -243,8 +306,11 @@ export const GraphCanvas = () => {
                 position="bottom-left"
             />
             <MiniMap 
-                nodeColor={theme === 'dark' ? '#3f3f46' : '#d4d4d8'}
-                maskColor={theme === 'dark' ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.8)'}
+                nodeColor={(node) => {
+                    if (foundPath?.nodes?.includes(node.id)) return '#10B981';
+                    return settings.theme === 'dark' ? '#3f3f46' : '#d4d4d8';
+                }}
+                maskColor={settings.theme === 'dark' ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.8)'}
                 position="bottom-right"
                 pannable
                 zoomable

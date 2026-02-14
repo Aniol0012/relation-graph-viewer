@@ -4,6 +4,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
+import { Badge } from '../ui/badge';
 import { 
     X, 
     Edit2, 
@@ -25,7 +26,10 @@ export const DetailsPanel = () => {
         deleteView,
         updateRelation,
         deleteRelation,
-        views
+        views,
+        getJoinType,
+        getJoinColor,
+        settings
     } = useApp();
 
     const [isEditing, setIsEditing] = useState(false);
@@ -93,6 +97,10 @@ export const DetailsPanel = () => {
         ? views.find(v => v.id === selectedRelation.target)
         : null;
 
+    // Get join info
+    const joinType = selectedRelation ? getJoinType(selectedRelation.relation) : null;
+    const joinColor = selectedRelation ? getJoinColor(selectedRelation.relation) : null;
+
     return (
         <div className="details-panel animate-slide-in-right" data-testid="details-panel">
             {/* Header */}
@@ -101,11 +109,23 @@ export const DetailsPanel = () => {
                     {selectedView ? (
                         <Box className="w-5 h-5 text-accent" />
                     ) : (
-                        <GitBranch className="w-5 h-5 text-accent" />
+                        <GitBranch className="w-5 h-5" style={{ color: joinColor }} />
                     )}
                     <h2 className="font-heading font-semibold">
                         {selectedView ? 'Detalls de Vista' : 'Detalls de Relació'}
                     </h2>
+                    {joinType && (
+                        <Badge 
+                            variant="outline" 
+                            className="ml-2 text-xs"
+                            style={{ 
+                                borderColor: joinColor,
+                                color: joinColor
+                            }}
+                        >
+                            {joinType}
+                        </Badge>
+                    )}
                 </div>
                 <Button
                     variant="ghost"
@@ -124,8 +144,8 @@ export const DetailsPanel = () => {
                         {/* View ID */}
                         <div>
                             <Label className="text-muted-foreground">View ID</Label>
-                            <div className="font-mono text-lg font-semibold mt-1">
-                                {selectedView.view_id}
+                            <div className="font-mono text-2xl font-bold mt-1 text-accent">
+                                #{selectedView.view_id}
                             </div>
                         </div>
 
@@ -137,7 +157,7 @@ export const DetailsPanel = () => {
                                         id="name"
                                         value={editData.name}
                                         onChange={(e) => setEditData({...editData, name: e.target.value})}
-                                        className="mt-1"
+                                        className="mt-1 font-mono"
                                         data-testid="edit-name-input"
                                     />
                                 </div>
@@ -147,7 +167,7 @@ export const DetailsPanel = () => {
                                         id="name2"
                                         value={editData.name2}
                                         onChange={(e) => setEditData({...editData, name2: e.target.value})}
-                                        className="mt-1"
+                                        className="mt-1 font-mono"
                                         data-testid="edit-name2-input"
                                     />
                                 </div>
@@ -160,21 +180,30 @@ export const DetailsPanel = () => {
                                         className="mt-1"
                                         data-testid="edit-alias-input"
                                     />
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                        L'alias es mostra al graf si està definit
+                                    </p>
                                 </div>
                             </>
                         ) : (
                             <>
+                                <div className="p-3 rounded-lg bg-secondary/50">
+                                    <Label className="text-muted-foreground text-xs">Nom mostrat</Label>
+                                    <div className="font-semibold text-lg mt-1">
+                                        {selectedView.alias || selectedView.name || '-'}
+                                    </div>
+                                </div>
                                 <div>
-                                    <Label className="text-muted-foreground">Name</Label>
-                                    <div className="font-mono mt-1">{selectedView.name || '-'}</div>
+                                    <Label className="text-muted-foreground">Name (DB)</Label>
+                                    <div className="font-mono mt-1 text-sm">{selectedView.name || '-'}</div>
                                 </div>
                                 <div>
                                     <Label className="text-muted-foreground">Name2</Label>
-                                    <div className="font-mono mt-1">{selectedView.name2 || '-'}</div>
+                                    <div className="font-mono mt-1 text-sm">{selectedView.name2 || '-'}</div>
                                 </div>
                                 <div>
                                     <Label className="text-muted-foreground">Alias</Label>
-                                    <div className="font-mono mt-1">{selectedView.alias || '-'}</div>
+                                    <div className="mt-1">{selectedView.alias || '-'}</div>
                                 </div>
                             </>
                         )}
@@ -187,15 +216,30 @@ export const DetailsPanel = () => {
                         <div className="flex items-center gap-2 p-3 rounded-lg bg-secondary/50">
                             <div className="flex-1 text-center">
                                 <div className="text-xs text-muted-foreground mb-1">Origen</div>
-                                <div className="font-medium truncate">
-                                    {sourceView?.display_name || selectedRelation.source}
+                                <div className="font-semibold truncate">
+                                    {sourceView?.alias || sourceView?.name || selectedRelation.source}
+                                </div>
+                                <div className="text-xs font-mono text-muted-foreground">
+                                    #{sourceView?.view_id}
                                 </div>
                             </div>
-                            <ArrowRight className="w-5 h-5 text-accent" />
+                            <div className="flex flex-col items-center">
+                                <ArrowRight className="w-5 h-5" style={{ color: joinColor }} />
+                                <Badge 
+                                    variant="outline" 
+                                    className="text-[10px] mt-1"
+                                    style={{ borderColor: joinColor, color: joinColor }}
+                                >
+                                    {joinType}
+                                </Badge>
+                            </div>
                             <div className="flex-1 text-center">
                                 <div className="text-xs text-muted-foreground mb-1">Destí</div>
-                                <div className="font-medium truncate">
-                                    {targetView?.display_name || selectedRelation.target}
+                                <div className="font-semibold truncate">
+                                    {targetView?.alias || targetView?.name || selectedRelation.target}
+                                </div>
+                                <div className="text-xs font-mono text-muted-foreground">
+                                    #{targetView?.view_id}
                                 </div>
                             </div>
                         </div>
@@ -214,13 +258,13 @@ export const DetailsPanel = () => {
                                     />
                                 </div>
                                 <div>
-                                    <Label htmlFor="relation2">Relation2 (SQL)</Label>
+                                    <Label htmlFor="relation2">Relation2 (SQL alternativa)</Label>
                                     <Textarea
                                         id="relation2"
                                         value={editData.relation2 || ''}
                                         onChange={(e) => setEditData({...editData, relation2: e.target.value})}
                                         className="mt-1 font-mono text-sm"
-                                        rows={4}
+                                        rows={3}
                                         data-testid="edit-relation2-input"
                                     />
                                 </div>
@@ -231,7 +275,7 @@ export const DetailsPanel = () => {
                                         type="number"
                                         value={editData.edge_weight}
                                         onChange={(e) => setEditData({...editData, edge_weight: parseInt(e.target.value) || 10})}
-                                        className="mt-1"
+                                        className="mt-1 w-24"
                                         data-testid="edit-weight-input"
                                     />
                                 </div>
@@ -246,15 +290,17 @@ export const DetailsPanel = () => {
                                 </div>
                                 {selectedRelation.relation2 && (
                                     <div>
-                                        <Label className="text-muted-foreground">Relation2 (SQL)</Label>
+                                        <Label className="text-muted-foreground">Relation2 (SQL alternativa)</Label>
                                         <div className="sql-code mt-1">
                                             {selectedRelation.relation2}
                                         </div>
                                     </div>
                                 )}
-                                <div>
-                                    <Label className="text-muted-foreground">Edge Weight</Label>
-                                    <div className="mt-1">{selectedRelation.edge_weight || 10}</div>
+                                <div className="flex gap-4">
+                                    <div>
+                                        <Label className="text-muted-foreground">Edge Weight</Label>
+                                        <div className="mt-1 font-mono">{selectedRelation.edge_weight || 10}</div>
+                                    </div>
                                 </div>
                             </>
                         )}

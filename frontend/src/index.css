@@ -90,11 +90,12 @@ h1, h2, h3, h4, h5, h6, .font-heading {
 
 .react-flow__edge-path {
     stroke-width: 2;
-    transition: stroke 0.2s ease;
+    transition: stroke 0.2s ease, stroke-width 0.2s ease;
 }
 
 .react-flow__edge:hover .react-flow__edge-path {
     stroke-width: 3;
+    filter: drop-shadow(0 0 4px currentColor);
 }
 
 .react-flow__controls {
@@ -126,22 +127,21 @@ h1, h2, h3, h4, h5, h6, .font-heading {
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-    background: hsl(var(--secondary));
-    border-radius: 4px;
+    background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-    background: hsl(var(--muted-foreground) / 0.3);
-    border-radius: 4px;
+    background: hsl(var(--muted-foreground) / 0.2);
+    border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--muted-foreground) / 0.5);
+    background: hsl(var(--muted-foreground) / 0.4);
 }
 
 /* Glass effect */
@@ -172,10 +172,89 @@ h1, h2, h3, h4, h5, h6, .font-heading {
     }
 }
 
+@keyframes pulse-glow {
+    0%, 100% {
+        box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 16px rgba(16, 185, 129, 0.7);
+    }
+}
+
 .animate-slide-in-right {
     animation: slideInRight 0.3s ease-out;
 }
 
 .animate-fade-in {
     animation: fadeIn 0.2s ease-out;
+}
+
+/* Node handles */
+.node-handle {
+    width: 8px !important;
+    height: 8px !important;
+    background: hsl(var(--accent)) !important;
+    border: none !important;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.react-flow__node:hover .node-handle {
+    opacity: 1;
+}
+
+/* Node ID badge */
+.node-id-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    border-radius: 4px;
+    background: hsl(var(--accent) / 0.15);
+    color: hsl(var(--accent));
+}
+
+/* Path badges */
+.path-badge {
+    display: inline-flex;
+    padding: 1px 4px;
+    font-size: 8px;
+    font-weight: 700;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.path-badge.start {
+    background: rgba(16, 185, 129, 0.2);
+    color: #10B981;
+}
+
+.path-badge.end {
+    background: rgba(59, 130, 246, 0.2);
+    color: #3B82F6;
+}
+
+/* Path highlight */
+.custom-node.path-highlight {
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.custom-node.path-start {
+    border-color: #10B981 !important;
+}
+
+.custom-node.path-end {
+    border-color: #3B82F6 !important;
+}
+
+.custom-node.pathfinding-mode {
+    cursor: crosshair;
+}
+
+.custom-node.pathfinding-mode:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 12px hsl(var(--accent) / 0.5);
 }

@@ -6,6 +6,39 @@ const API = `${BACKEND_URL}/api`;
 
 const AppContext = createContext(null);
 
+// Default settings
+const defaultSettings = {
+    // Display
+    showViewId: true,
+    showAlias: true,
+    maxNodeNameLength: 20,
+    nodeSize: 'medium', // small, medium, large
+    
+    // Colors per join type
+    joinColors: {
+        'LEFT JOIN': '#3B82F6',      // Blue
+        'RIGHT JOIN': '#8B5CF6',     // Purple
+        'INNER JOIN': '#10B981',     // Green
+        'CROSS JOIN': '#F59E0B',     // Amber
+        'FULL JOIN': '#EC4899',      // Pink
+        'JOIN': '#6366F1',           // Indigo
+        'DEFAULT': '#71717A'         // Gray
+    },
+    
+    // Layout
+    layoutDirection: 'TB', // TB (top-bottom), LR (left-right)
+    nodeSpacing: 80,
+    levelSpacing: 120,
+    
+    // Edges
+    edgeStyle: 'smoothstep', // smoothstep, bezier, straight
+    showEdgeLabels: true,
+    animatedEdges: false,
+    
+    // Theme
+    theme: 'dark'
+};
+
 export const useApp = () => {
     const context = useContext(AppContext);
     if (!context) {
@@ -15,10 +48,10 @@ export const useApp = () => {
 };
 
 export const AppProvider = ({ children }) => {
-    // Theme state
-    const [theme, setTheme] = useState(() => {
-        const saved = localStorage.getItem('theme');
-        return saved || 'dark';
+    // Settings state
+    const [settings, setSettings] = useState(() => {
+        const saved = localStorage.getItem('dbgraph_settings');
+        return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
     });
 
     // Data state
@@ -32,17 +65,70 @@ export const AppProvider = ({ children }) => {
     const [selectedRelation, setSelectedRelation] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [stats, setStats] = useState({ views_count: 0, relations_count: 0 });
+    
+    // Pathfinding state
+    const [pathfindingMode, setPathfindingMode] = useState(false);
+    const [pathStart, setPathStart] = useState(null);
+    const [pathEnd, setPathEnd] = useState(null);
+    const [foundPath, setFoundPath] = useState(null);
+
+    // Save settings to localStorage
+    useEffect(() => {
+        localStorage.setItem('dbgraph_settings', JSON.stringify(settings));
+    }, [settings]);
 
     // Apply theme
     useEffect(() => {
         const root = document.documentElement;
         root.classList.remove('light', 'dark');
-        root.classList.add(theme);
-        localStorage.setItem('theme', theme);
-    }, [theme]);
+        root.classList.add(settings.theme);
+    }, [settings.theme]);
+
+    const updateSettings = (newSettings) => {
+        setSettings(prev => ({ ...prev, ...newSettings }));
+    };
+
+    const resetSettings = () => {
+        setSettings(defaultSettings);
+        localStorage.removeItem('dbgraph_settings');
+    };
 
     const toggleTheme = () => {
-        setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+        updateSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' });
+    };
+
+    // Get join type from relation string
+    const getJoinType = (relationStr) => {
+        if (!relationStr) return 'DEFAULT';
+        const upper = relationStr.toUpperCase();
+        if (upper.includes('LEFT JOIN')) return 'LEFT JOIN';
+        if (upper.includes('RIGHT JOIN')) return 'RIGHT JOIN';
+        if (upper.includes('INNER JOIN')) return 'INNER JOIN';
+        if (upper.includes('CROSS JOIN')) return 'CROSS JOIN';
+        if (upper.includes('FULL JOIN') || upper.includes('FULL OUTER')) return 'FULL JOIN';
+        if (upper.includes('JOIN')) return 'JOIN';
+        return 'DEFAULT';
+    };
+
+    // Get color for join type
+    const getJoinColor = (relationStr) => {
+        const joinType = getJoinType(relationStr);
+        return settings.joinColors[joinType] || settings.joinColors['DEFAULT'];
+    };
+
+    // Truncate name
+    const truncateName = (name, maxLength) => {
+        if (!name) return '';
+        if (name.length <= maxLength) return name;
+        return name.substring(0, maxLength - 2) + '..';
+    };
+
+    // Format display name for node
+    const formatNodeDisplay = (view) => {
+        const maxLen = settings.maxNodeNameLength;
+        let displayName = view.alias || view.name || `View_${view.view_id}`;
+        displayName = truncateName(displayName, maxLen);
+        return displayName;
     };
 
     // Fetch data
@@ -71,6 +157,64 @@ export const AppProvider = ({ children }) => {
         fetchData();
     }, [fetchData]);
 
+    // Pathfinding - BFS
+    const findPath = useCallback((startId, endId) => {
+        if (!startId || !endId || startId === endId) {
+            setFoundPath(null);
+            return null;
+        }
+
+        // Build adjacency list (bidirectional)
+        const adjacency = new Map();
+        views.forEach(v => adjacency.set(v.id, []));
+        
+        relations.forEach(rel => {
+            if (adjacency.has(rel.source)) {
+                adjacency.get(rel.source).push({ target: rel.target, relation: rel });
+            }
+            if (adjacency.has(rel.target)) {
+                adjacency.get(rel.target).push({ target: rel.source, relation: rel });
+            }
+        });
+
+        // BFS
+        const queue = [{ node: startId, path: [startId], edges: [] }];
+        const visited = new Set([startId]);
+
+        while (queue.length > 0) {
+            const { node, path, edges } = queue.shift();
+            
+            if (node === endId) {
+                const result = { nodes: path, edges };
+                setFoundPath(result);
+                return result;
+            }
+
+            const neighbors = adjacency.get(node) || [];
+            for (const { target, relation } of neighbors) {
+                if (!visited.has(target)) {
+                    visited.add(target);
+                    queue.push({
+                        node: target,
+                        path: [...path, target],
+                        edges: [...edges, relation.id]
+                    });
+                }
+            }
+        }
+
+        setFoundPath({ nodes: [], edges: [], notFound: true });
+        return null;
+    }, [views, relations]);
+
+    // Clear pathfinding
+    const clearPathfinding = () => {
+        setPathfindingMode(false);
+        setPathStart(null);
+        setPathEnd(null);
+        setFoundPath(null);
+    };
+
     // Import SQL
     const importSql = async (sql) => {
         try {
@@ -83,7 +227,7 @@ export const AppProvider = ({ children }) => {
         }
     };
 
-    // Create view
+    // CRUD operations
     const createView = async (viewData) => {
         try {
             await axios.post(`${API}/views`, viewData);
@@ -94,7 +238,6 @@ export const AppProvider = ({ children }) => {
         }
     };
 
-    // Update view
     const updateView = async (viewId, updateData) => {
         try {
             await axios.put(`${API}/views/${viewId}`, updateData);
@@ -105,7 +248,6 @@ export const AppProvider = ({ children }) => {
         }
     };
 
-    // Delete view
     const deleteView = async (viewId) => {
         try {
             await axios.delete(`${API}/views/${viewId}`);
@@ -119,7 +261,6 @@ export const AppProvider = ({ children }) => {
         }
     };
 
-    // Create relation
     const createRelation = async (relationData) => {
         try {
             await axios.post(`${API}/relations`, relationData);
@@ -130,7 +271,6 @@ export const AppProvider = ({ children }) => {
         }
     };
 
-    // Update relation
     const updateRelation = async (relationId, updateData) => {
         try {
             await axios.put(`${API}/relations/${relationId}`, updateData);
@@ -141,7 +281,6 @@ export const AppProvider = ({ children }) => {
         }
     };
 
-    // Delete relation
     const deleteRelation = async (relationId) => {
         try {
             await axios.delete(`${API}/relations/${relationId}`);
@@ -155,12 +294,12 @@ export const AppProvider = ({ children }) => {
         }
     };
 
-    // Clear all data
     const clearAllData = async () => {
         try {
             await axios.delete(`${API}/clear-all`);
             setSelectedView(null);
             setSelectedRelation(null);
+            clearPathfinding();
             await fetchData();
         } catch (err) {
             console.error('Error clearing data:', err);
@@ -181,9 +320,18 @@ export const AppProvider = ({ children }) => {
     });
 
     const value = {
-        // Theme
-        theme,
+        // Settings
+        settings,
+        updateSettings,
+        resetSettings,
         toggleTheme,
+        defaultSettings,
+        
+        // Helpers
+        getJoinType,
+        getJoinColor,
+        formatNodeDisplay,
+        truncateName,
         
         // Data
         views,
@@ -202,6 +350,17 @@ export const AppProvider = ({ children }) => {
         // Search
         searchQuery,
         setSearchQuery,
+        
+        // Pathfinding
+        pathfindingMode,
+        setPathfindingMode,
+        pathStart,
+        setPathStart,
+        pathEnd,
+        setPathEnd,
+        foundPath,
+        findPath,
+        clearPathfinding,
         
         // Actions
         fetchData,
