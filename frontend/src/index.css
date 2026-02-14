@@ -258,3 +258,26 @@ h1, h2, h3, h4, h5, h6, .font-heading {
     transform: scale(1.05);
     box-shadow: 0 0 12px hsl(var(--accent) / 0.5);
 }
+
+/* Connection mode */
+.custom-node.connection-mode {
+    cursor: crosshair;
+}
+
+.custom-node.connection-source {
+    animation: pulse-amber 2s ease-in-out infinite;
+}
+
+@keyframes pulse-amber {
+    0%, 100% {
+        box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 16px rgba(245, 158, 11, 0.7);
+    }
+}
+
+/* New item indicator */
+.custom-node .absolute {
+    z-index: 10;
+}
