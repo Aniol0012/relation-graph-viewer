@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
     Dialog,
@@ -24,33 +24,79 @@ import { ScrollArea } from '../ui/scroll-area';
 import { Settings, Palette, Layout, Eye, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 
+// Suppress ResizeObserver errors
+if (typeof window !== 'undefined') {
+    const resizeObserverErr = window.onerror;
+    window.onerror = function(msg, url, line, col, error) {
+        if (msg && msg.toString().includes('ResizeObserver')) {
+            return true;
+        }
+        if (resizeObserverErr) {
+            return resizeObserverErr(msg, url, line, col, error);
+        }
+        return false;
+    };
+}
+
 export const SettingsModal = ({ open, onOpenChange }) => {
     const { settings, updateSettings, resetSettings, defaultSettings } = useApp();
-    const [localSettings, setLocalSettings] = useState(settings);
+    
+    // Use local state to batch updates
+    const [localSettings, setLocalSettings] = useState({ ...settings });
 
-    // Sync local state when modal opens
-    React.useEffect(() => {
+    // Sync when modal opens
+    useEffect(() => {
         if (open) {
-            setLocalSettings(settings);
+            setLocalSettings({ ...settings });
         }
     }, [open, settings]);
 
-    const handleChange = (key, value) => {
+    const handleLocalChange = (key, value) => {
         setLocalSettings(prev => ({ ...prev, [key]: value }));
-        // Apply immediately
-        updateSettings({ [key]: value });
     };
 
     const handleColorChange = (joinType, color) => {
-        const newColors = { ...localSettings.joinColors, [joinType]: color };
-        setLocalSettings(prev => ({ ...prev, joinColors: newColors }));
-        updateSettings({ joinColors: newColors });
+        setLocalSettings(prev => ({
+            ...prev,
+            joinColors: { ...prev.joinColors, [joinType]: color }
+        }));
+    };
+
+    // Apply changes when closing or explicitly
+    const applyChanges = () => {
+        updateSettings(localSettings);
+    };
+
+    const handleClose = () => {
+        applyChanges();
+        onOpenChange(false);
     };
 
     const handleReset = () => {
-        setLocalSettings(defaultSettings);
+        setLocalSettings({ ...defaultSettings });
         resetSettings();
         toast.success('Configuració restablerta');
+    };
+
+    // Debounced apply for sliders
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (open) {
+                updateSettings(localSettings);
+            }
+        }, 200);
+        return () => clearTimeout(timer);
+    }, [localSettings.nodeSpacing, localSettings.levelSpacing, localSettings.maxNodeNameLength]);
+
+    // Immediate apply for toggles and selects
+    const handleImmediateChange = (key, value) => {
+        handleLocalChange(key, value);
+        updateSettings({ [key]: value });
+    };
+
+    const handleImmediateColorChange = (joinType, color) => {
+        handleColorChange(joinType, color);
+        updateSettings({ joinColors: { ...localSettings.joinColors, [joinType]: color } });
     };
 
     const joinTypes = [
@@ -64,7 +110,7 @@ export const SettingsModal = ({ open, onOpenChange }) => {
     ];
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
+        <Dialog open={open} onOpenChange={handleClose}>
             <DialogContent className="max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
                 <DialogHeader>
                     <DialogTitle className="font-heading flex items-center gap-2">
@@ -92,7 +138,7 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                         </TabsTrigger>
                     </TabsList>
 
-                    <ScrollArea className="flex-1 mt-4 pr-4" style={{ height: 'calc(85vh - 220px)' }}>
+                    <div className="flex-1 mt-4 overflow-y-auto pr-2" style={{ maxHeight: 'calc(85vh - 220px)' }}>
                         {/* Display Settings */}
                         <TabsContent value="display" className="space-y-6 mt-0">
                             <div className="space-y-4">
@@ -105,7 +151,7 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                                     </div>
                                     <Switch
                                         checked={localSettings.showViewId}
-                                        onCheckedChange={(checked) => handleChange('showViewId', checked)}
+                                        onCheckedChange={(checked) => handleImmediateChange('showViewId', checked)}
                                         data-testid="toggle-show-id"
                                     />
                                 </div>
@@ -117,7 +163,7 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                                     </div>
                                     <Switch
                                         checked={localSettings.showAlias}
-                                        onCheckedChange={(checked) => handleChange('showAlias', checked)}
+                                        onCheckedChange={(checked) => handleImmediateChange('showAlias', checked)}
                                         data-testid="toggle-show-alias"
                                     />
                                 </div>
@@ -127,7 +173,7 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                                     <p className="text-xs text-muted-foreground mb-2">Caràcters: {localSettings.maxNodeNameLength}</p>
                                     <Slider
                                         value={[localSettings.maxNodeNameLength]}
-                                        onValueChange={([val]) => handleChange('maxNodeNameLength', val)}
+                                        onValueChange={([val]) => handleLocalChange('maxNodeNameLength', val)}
                                         min={10}
                                         max={40}
                                         step={1}
@@ -139,7 +185,7 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                                     <Label>Mida dels nodes</Label>
                                     <Select
                                         value={localSettings.nodeSize}
-                                        onValueChange={(val) => handleChange('nodeSize', val)}
+                                        onValueChange={(val) => handleImmediateChange('nodeSize', val)}
                                     >
                                         <SelectTrigger className="mt-1" data-testid="select-node-size">
                                             <SelectValue />
@@ -163,7 +209,7 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                                     </div>
                                     <Switch
                                         checked={localSettings.showEdgeLabels}
-                                        onCheckedChange={(checked) => handleChange('showEdgeLabels', checked)}
+                                        onCheckedChange={(checked) => handleImmediateChange('showEdgeLabels', checked)}
                                         data-testid="toggle-edge-labels"
                                     />
                                 </div>
@@ -175,7 +221,7 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                                     </div>
                                     <Switch
                                         checked={localSettings.animatedEdges}
-                                        onCheckedChange={(checked) => handleChange('animatedEdges', checked)}
+                                        onCheckedChange={(checked) => handleImmediateChange('animatedEdges', checked)}
                                         data-testid="toggle-animated-edges"
                                     />
                                 </div>
@@ -184,7 +230,7 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                                     <Label>Estil de les arestes</Label>
                                     <Select
                                         value={localSettings.edgeStyle}
-                                        onValueChange={(val) => handleChange('edgeStyle', val)}
+                                        onValueChange={(val) => handleImmediateChange('edgeStyle', val)}
                                     >
                                         <SelectTrigger className="mt-1" data-testid="select-edge-style">
                                             <SelectValue />
@@ -205,7 +251,7 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                                     <Label>Mode de color</Label>
                                     <Select
                                         value={localSettings.theme}
-                                        onValueChange={(val) => handleChange('theme', val)}
+                                        onValueChange={(val) => handleImmediateChange('theme', val)}
                                     >
                                         <SelectTrigger className="mt-1" data-testid="select-theme">
                                             <SelectValue />
@@ -230,14 +276,14 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                                     <div className="flex items-center gap-3">
                                         <div 
                                             className="w-4 h-4 rounded-full border"
-                                            style={{ backgroundColor: localSettings.joinColors[key] }}
+                                            style={{ backgroundColor: localSettings.joinColors?.[key] || '#71717A' }}
                                         />
                                         <Label className="text-sm">{label}</Label>
                                     </div>
                                     <Input
                                         type="color"
-                                        value={localSettings.joinColors[key]}
-                                        onChange={(e) => handleColorChange(key, e.target.value)}
+                                        value={localSettings.joinColors?.[key] || '#71717A'}
+                                        onChange={(e) => handleImmediateColorChange(key, e.target.value)}
                                         className="w-16 h-8 p-1 cursor-pointer"
                                         data-testid={`color-${key.replace(' ', '-').toLowerCase()}`}
                                     />
@@ -251,7 +297,7 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                                         <div key={key} className="flex items-center gap-2 text-xs">
                                             <div 
                                                 className="w-3 h-3 rounded-full"
-                                                style={{ backgroundColor: localSettings.joinColors[key] }}
+                                                style={{ backgroundColor: localSettings.joinColors?.[key] || '#71717A' }}
                                             />
                                             <span className="text-muted-foreground">{label}</span>
                                         </div>
@@ -267,7 +313,7 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                                 <p className="text-xs text-muted-foreground mb-2">Com s'organitzen els nodes</p>
                                 <Select
                                     value={localSettings.layoutDirection}
-                                    onValueChange={(val) => handleChange('layoutDirection', val)}
+                                    onValueChange={(val) => handleImmediateChange('layoutDirection', val)}
                                 >
                                     <SelectTrigger data-testid="select-layout-direction">
                                         <SelectValue />
@@ -284,7 +330,7 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                                 <p className="text-xs text-muted-foreground mb-2">{localSettings.nodeSpacing}px</p>
                                 <Slider
                                     value={[localSettings.nodeSpacing]}
-                                    onValueChange={([val]) => handleChange('nodeSpacing', val)}
+                                    onValueChange={([val]) => handleLocalChange('nodeSpacing', val)}
                                     min={40}
                                     max={200}
                                     step={10}
@@ -297,7 +343,7 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                                 <p className="text-xs text-muted-foreground mb-2">{localSettings.levelSpacing}px</p>
                                 <Slider
                                     value={[localSettings.levelSpacing]}
-                                    onValueChange={([val]) => handleChange('levelSpacing', val)}
+                                    onValueChange={([val]) => handleLocalChange('levelSpacing', val)}
                                     min={60}
                                     max={300}
                                     step={10}
@@ -305,7 +351,7 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                                 />
                             </div>
                         </TabsContent>
-                    </ScrollArea>
+                    </div>
                 </Tabs>
 
                 {/* Footer */}
@@ -320,7 +366,7 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                         Restablir
                     </Button>
                     <div className="flex-1" />
-                    <Button onClick={() => onOpenChange(false)} data-testid="close-settings-btn">
+                    <Button onClick={handleClose} data-testid="close-settings-btn">
                         Tancar
                     </Button>
                 </div>
