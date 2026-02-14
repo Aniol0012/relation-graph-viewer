@@ -18,9 +18,6 @@ Aplicació web per visualitzar estructures de base de dades en forma de grafs ba
 - Operacions CRUD: crear, editar, eliminar vistes i relacions
 - Filtrar per nom, alias i ID
 - Canviar tema fosc/clar
-- Colors diferents per tipus de JOIN
-- Eina de pathfinding entre vistes
-- Panel de configuració personalitzable
 
 ## What's Been Implemented (Jan 2026)
 
@@ -32,30 +29,38 @@ Aplicació web per visualitzar estructures de base de dades en forma de grafs ba
 - [x] Panel de detalls
 - [x] Toggle tema fosc/clar
 
-### v1.1 - Millores (Actual)
-- [x] **Colors per tipus de JOIN**: LEFT JOIN (blau), INNER JOIN (verd), RIGHT JOIN (lila), CROSS JOIN (ambar), FULL JOIN (rosa)
-- [x] **Nodes millorats**: Mostren alias + ID (#), nom original a sota si hi ha alias
-- [x] **Llegenda de colors**: A la sidebar per referència ràpida
-- [x] **Pathfinding**: Botó "Trobar camí" per cercar ruta entre dues vistes, ressaltat del camí amb nodes verds i animació
-- [x] **Panel de Configuració**:
-  - Visualització: toggle ID, toggle nom original, longitud màx nom, mida nodes
-  - Arestes: toggle etiquetes JOIN, animació, estil (smoothstep/bezier/recta)
-  - Colors: personalitzar color de cada tipus de JOIN
-  - Layout: direcció (vertical/horitzontal), espaiat entre nodes i nivells
-  - Tema: fosc/clar
-- [x] **Persistència**: Configuració guardada a localStorage
+### v1.1 - Millores Visuals
+- [x] Colors per tipus de JOIN (LEFT, INNER, RIGHT, CROSS, FULL)
+- [x] Nodes mostren alias + ID, nom original a sota
+- [x] Llegenda de colors a la sidebar
+- [x] Pathfinding entre vistes
+- [x] Panel de configuració complet
+
+### v1.2 - Productivitat (Actual)
+- [x] **Focus al graf**: Clic a una vista fa zoom al node
+- [x] **Creueta cerca**: Botó per netejar la cerca ràpidament
+- [x] **Exportar SQL**: Cada vista/relació es pot exportar com INSERT o UPDATE MariaDB
+- [x] **Crear relacions intuïtivament**: Context menu (clic dret) per crear relacions des dels nodes
+- [x] **Marcar elements nous**: Badge "NOU" taronja per vistes i relacions noves (no al script original)
+- [x] **Relacions noves amb línia discontínua**: Per diferenciar-les visualment
+- [x] **Exportar tots els nous**: Botó "Nous (X)" per copiar tots els INSERTs nous
+- [x] **MAX(ViewId)+1**: Al crear vista suggereix el pròxim ID disponible
+- [x] **Persistència completa**:
+  - Configuració visual a localStorage
+  - Últim script SQL importat guardat i recuperable
+  - IDs originals per detectar canvis
 
 ## Tech Stack
 - Backend: FastAPI, MongoDB, Motor
 - Frontend: React, ReactFlow, TailwindCSS, Shadcn/UI
-- Persistència: localStorage per configuració
+- Persistència: localStorage (configuració, script SQL)
 
 ## Prioritized Backlog
 
 ### P1 (High)
-- Exportar dades a SQL
 - Selecció múltiple de nodes
 - Historial de canvis/undo
+- Arrossegar per crear relacions (drag & drop)
 
 ### P2 (Medium)
 - Guardar layouts personalitzats
@@ -64,6 +69,6 @@ Aplicació web per visualitzar estructures de base de dades en forma de grafs ba
 - Agrupar vistes per esquema
 
 ### P3 (Low)
-- Exportar graf com a imatge
+- Exportar graf com a imatge PNG/SVG
 - Integració amb BD real
 - Múltiples grafs/projectes
