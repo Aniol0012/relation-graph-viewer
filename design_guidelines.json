@@ -1,0 +1,133 @@
+{
+  "design_identity": {
+    "persona": "E1: The Anti-AI Designer",
+    "philosophy": "Fusion over Imitation. Emotion First. Content is King.",
+    "anti_patterns": [
+      "No purple/teal for primary CTAs",
+      "No default Inter for headings",
+      "No center-everything layouts",
+      "No excessive gradients (>20%)"
+    ]
+  },
+  "theme_strategy": {
+    "default_mode": "dark",
+    "toggle_enabled": true,
+    "instructions": "Implement a theme toggle (Sun/Moon). Default to Dark Mode for the 'Developer Tool' aesthetic. Ensure all components support both 'class' based dark mode."
+  },
+  "typography": {
+    "font_family": {
+      "headings": "Space Grotesk, sans-serif",
+      "body": "Inter, sans-serif",
+      "code": "JetBrains Mono, monospace"
+    },
+    "scale": {
+      "h1": "text-4xl font-bold tracking-tight",
+      "h2": "text-3xl font-semibold tracking-tight",
+      "h3": "text-2xl font-medium",
+      "body": "text-base leading-relaxed",
+      "small": "text-sm text-muted-foreground",
+      "code": "text-sm font-mono"
+    },
+    "rules": "Use Space Grotesk for Headings to give a 'Technical/Structural' feel. Use Inter for UI density. Use JetBrains Mono for all Table Names, Column Names, and SQL snippets."
+  },
+  "colors": {
+    "palette_name": "The Performance Pro (Obsidian & Electric)",
+    "primary": {
+      "light": "#000000",
+      "dark": "#FFFFFF",
+      "description": "Primary action color. High contrast."
+    },
+    "accent": {
+      "default": "#3B82F6",
+      "hover": "#2563EB",
+      "description": "Electric Blue for active states, selection, and primary links. AVOID Teal."
+    },
+    "background": {
+      "light": "#FFFFFF",
+      "dark": "#09090B",
+      "code_block": "#18181B"
+    },
+    "surface": {
+      "light": "#F4F4F5",
+      "dark": "#18181B",
+      "border": "#27272A"
+    },
+    "status": {
+      "success": "#10B981",
+      "warning": "#F59E0B",
+      "error": "#EF4444",
+      "info": "#3B82F6"
+    }
+  },
+  "layout_system": {
+    "grid_mode": "MODE B: High Density Grid (For Dashboards)",
+    "structure": {
+      "sidebar": "w-64 border-r border-border bg-card/50 backdrop-blur-xl h-screen fixed left-0 top-0 z-30",
+      "main_canvas": "flex-1 h-screen ml-64 bg-background relative overflow-hidden",
+      "overlay_panel": "absolute right-0 top-0 h-screen w-80 bg-background/95 backdrop-blur-md border-l border-border shadow-2xl transform transition-transform"
+    },
+    "spacing": "Use 'p-4' or 'p-6' for panels. Use 'gap-2' for dense lists."
+  },
+  "components": {
+    "library": "shadcn/ui",
+    "customization_rules": [
+      "Radius: 'rounded-md' (4px) or 'rounded-none' for a sharper, technical look.",
+      "Inputs: 'bg-secondary/50 border-transparent focus:border-primary ring-0'.",
+      "Buttons: 'font-medium tracking-wide'. Primary buttons should be solid white (in dark mode) or black (in light mode)."
+    ],
+    "key_components": [
+      {
+        "name": "GraphCanvas",
+        "library": "reactflow",
+        "description": "The core visualization. Use React Flow for node-based dragging and connecting. Custom Nodes for Tables.",
+        "path": "/app/frontend/src/components/graph/GraphCanvas.js"
+      },
+      {
+        "name": "SqlImporter",
+        "type": "Dialog",
+        "description": "Modal with syntax-highlighted textarea for pasting SQL.",
+        "path": "/app/frontend/src/components/importer/SqlImporter.js"
+      },
+      {
+        "name": "ViewList",
+        "type": "Sidebar List",
+        "description": "Filterable list of Views. Use Virtualization if many items.",
+        "path": "/app/frontend/src/components/sidebar/ViewList.js"
+      }
+    ]
+  },
+  "visual_enhancers": {
+    "glassmorphism": "Use 'backdrop-blur-md' on floating panels (Sidebar, Details Panel).",
+    "borders": "Use 'border-border/40' for subtle separation.",
+    "shadows": "Use 'shadow-xl' for floating elements to lift them off the canvas.",
+    "micro_interactions": "Hover states on Graph Nodes (glow effect). Smooth transitions on Panel slide-in."
+  },
+  "icons": {
+    "library": "lucide-react",
+    "style": "Stroke width 1.5px or 2px. Consistent sizing (w-4 h-4 for UI, w-5 h-5 for Nav)."
+  },
+  "instructions_to_main_agent": [
+    "1. Initialize the React Flow environment immediately.",
+    "2. Create the SQL Parser utility to convert SQL CREATE VIEW statements into Node/Edge data structures.",
+    "3. Implement the Theme Toggle in the top-right corner.",
+    "4. Build the Sidebar with a 'Filter' input at the top.",
+    "5. Ensure the Graph supports: Dragging nodes, Zoom/Pan, Click to Select (shows details).",
+    "6. Use 'sonner' for notifications (e.g., 'Import Successful').",
+    "7. Mock the backend API calls initially if needed, but structure them for FastAPI integration."
+  ],
+  "universal_guidelines": {
+    "design_philosophy": "Avoid generic 'AI Slop'. Create depth through z-index and glassmorphism. Use micro-animations.",
+    "css_rules": [
+      "Do NOT use 'transition: all'.",
+      "Do NOT center align the app container globally.",
+      "Use modern button styles (sharp or pill).",
+      "Use 'data-testid' for all interactive elements."
+    ],
+    "component_reuse": "Check /app/frontend/src/components/ui/ before creating new ones.",
+    "export_convention": "Named exports for Components, Default exports for Pages."
+  },
+  "image_urls": {
+    "logo": "Use a text-based logo or a simple geometric icon from Lucide (e.g., Database, Network).",
+    "placeholder_user": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop"
+  }
+}
