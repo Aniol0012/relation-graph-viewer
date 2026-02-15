@@ -1,0 +1,12 @@
+.git
+.gitignore
+.idea
+.vscode
+*.md
+memory/
+tests/
+test_reports/
+backend_test.py
+design_guidelines.json
+.emergent/
+

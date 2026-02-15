@@ -37,11 +37,57 @@ Aplicació web per visualitzar estructures de base de dades en forma de grafs in
 
 ## Prerequisits
 
+### Opció 1: Amb Docker (Recomanat) 🐳
+- **Docker Desktop** ([descarregar aquí](https://www.docker.com/products/docker-desktop))
+
+### Opció 2: Instal·lació Manual
 - **Node.js** >= 18.x
 - **Python** >= 3.9
 - **MongoDB** >= 5.0
 
-## Desplegament en Localhost
+## 🐳 Desplegament amb Docker (RECOMANAT)
+
+### Inici ràpid (1 comanda!)
+
+```powershell
+# Windows PowerShell
+.\start.ps1
+```
+
+O manualment:
+
+```powershell
+docker-compose up --build
+```
+
+L'aplicació estarà disponible a:
+- **Frontend:** http://localhost:3000
+- **Backend API:** http://localhost:8001
+
+### Aturar l'aplicació
+
+```powershell
+# Opció 1: Amb script
+.\stop.ps1
+
+# Opció 2: Manual
+docker-compose down
+
+# Eliminar totes les dades
+.\stop.ps1 -DeleteData
+```
+
+### Veure logs
+
+```powershell
+docker-compose logs -f
+```
+
+**📖 Per instruccions completes de Docker i com pujar a Docker Hub, consulta [DOCKER.md](DOCKER.md)**
+
+---
+
+## Desplegament en Localhost (Manual)
 
 ### 1. Configurar MongoDB
 
