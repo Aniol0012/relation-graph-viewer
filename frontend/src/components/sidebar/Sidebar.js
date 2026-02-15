@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { Input } from '../ui/input';
 import { ScrollArea } from '../ui/scroll-area';
@@ -16,7 +16,7 @@ import {
     Eye,
     EyeOff,
     Check,
-    Link2
+    ExternalLink
 } from 'lucide-react';
 
 export const Sidebar = () => {
@@ -44,8 +44,7 @@ export const Sidebar = () => {
         selectedForFilter,
         toggleViewForFilter,
         applyFilter,
-        clearFilters,
-        showOnlyConnected
+        clearFilters
     } = useApp();
 
     const handleViewClick = (view) => {
@@ -83,7 +82,7 @@ export const Sidebar = () => {
         <div className="sidebar" data-testid="sidebar">
             {/* Header */}
             <div className="sidebar-header">
-                <div className="flex items-center gap-3 mb-4">
+                <div className="flex items-center gap-3 mb-2">
                     <div className="p-2 rounded-lg bg-accent/10">
                         <Database className="w-5 h-5 text-accent" />
                     </div>
@@ -96,6 +95,17 @@ export const Sidebar = () => {
                         </p>
                     </div>
                 </div>
+                
+                {/* Author info */}
+                <a 
+                    href="https://github.com/Aniol0012/relation-graph-viewer" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-accent transition-colors mb-4"
+                >
+                    <span>per Aniol0012</span>
+                    <ExternalLink className="w-3 h-3" />
+                </a>
 
                 {/* Stats */}
                 <div className="flex gap-2 mb-4 flex-wrap">
@@ -270,20 +280,6 @@ export const Sidebar = () => {
                                             <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                                                 alias
                                             </Badge>
-                                        )}
-                                        {!filterMode && (
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-5 w-5 ml-auto opacity-0 group-hover:opacity-100"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    showOnlyConnected(view.view_id);
-                                                }}
-                                                title="Mostrar només connectades"
-                                            >
-                                                <Link2 className="w-3 h-3" />
-                                            </Button>
                                         )}
                                     </div>
                                     {settings.showAlias && view.alias && view.name !== view.alias && (
