@@ -548,6 +548,38 @@ export const AppProvider = ({ children }) => {
         }
     }, [fetchData, clearPathfinding, clearConnectionMode, clearFilters]);
 
+    // Get new views and relations
+    const newViews = views.filter(v => isNewView(v.view_id));
+    const newRelations = relations.filter(r => isNewRelation(r.id));
+
+    const clearNewItems = useCallback(async () => {
+        try {
+            const deletePromises = [];
+            
+            newRelations.forEach(rel => {
+                deletePromises.push(axios.delete(`${API}/relations/${rel.id}`));
+            });
+            
+            newViews.forEach(view => {
+                deletePromises.push(axios.delete(`${API}/views/${view.view_id}`));
+            });
+            
+            await Promise.all(deletePromises);
+            
+            if (selectedView && isNewView(selectedView.view_id)) {
+                setSelectedView(null);
+            }
+            if (selectedRelation && isNewRelation(selectedRelation.id)) {
+                setSelectedRelation(null);
+            }
+            
+            await fetchData();
+        } catch (err) {
+            console.error('Error clearing new items:', err);
+            throw err;
+        }
+    }, [newViews, newRelations, fetchData, selectedView, selectedRelation, isNewView, isNewRelation]);
+
     // Filter views based on search and hidden
     const filteredViews = views.filter(view => {
         // Check if hidden
@@ -576,9 +608,6 @@ export const AppProvider = ({ children }) => {
                !hiddenViews.has(targetView.view_id);
     });
 
-    // Get new views and relations
-    const newViews = views.filter(v => isNewView(v.view_id));
-    const newRelations = relations.filter(r => isNewRelation(r.id));
 
     const value = {
         // React Flow instance
@@ -663,7 +692,8 @@ export const AppProvider = ({ children }) => {
         createRelation,
         updateRelation,
         deleteRelation,
-        clearAllData
+        clearAllData,
+        clearNewItems
     };
 
     return (

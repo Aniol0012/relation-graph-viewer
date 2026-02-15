@@ -220,3 +220,50 @@ input[type="color"]::-webkit-color-swatch {
 .cursor-ew-resize {
     cursor: ew-resize;
 }
+
+/* Connection handle button */
+.connection-handle-button {
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 20;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    pointer-events: auto;
+}
+
+.connection-handle-button:hover {
+    transform: translateX(-50%) scale(1.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.dark .connection-handle-button {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.dark .connection-handle-button:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+}
+
+/* Invisible handles for connections */
+.node-handle-invisible {
+    opacity: 0;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.node-handle-invisible:hover {
+    opacity: 0;
+}
+

@@ -131,9 +131,7 @@ export const GraphCanvas = () => {
         visibleViews,
         visibleRelations,
         views,
-        selectedView, 
         setSelectedView,
-        selectedRelation,
         setSelectedRelation,
         settings,
         getJoinType,
@@ -151,8 +149,7 @@ export const GraphCanvas = () => {
         setConnectionMode,
         setConnectionSource,
         clearConnectionMode,
-        reactFlowInstance,
-        createRelation
+        reactFlowInstance
     } = useApp();
 
     const [createRelationModal, setCreateRelationModal] = useState(false);
@@ -237,7 +234,6 @@ export const GraphCanvas = () => {
 
     // Handle node click
     const onNodeClick = useCallback((event, node) => {
-        // Connection mode - selecting target
         if (connectionMode && connectionSource && node.id !== connectionSource) {
             setRelationTargetId(node.id);
             setCreateRelationModal(true);
@@ -262,30 +258,15 @@ export const GraphCanvas = () => {
         }
     }, [views, setSelectedView, setSelectedRelation, pathfindingMode, pathStart, pathEnd, setPathStart, setPathEnd, findPath, connectionMode, connectionSource]);
 
-    // Handle drop on node (for creating relations)
-    const onNodeDragStop = useCallback((event, node) => {
-        // Check if we're in connection mode and dropped on another node
-        if (connectionMode && connectionSource) {
-            // Get all nodes at drop position
-            const dropX = event.clientX;
-            const dropY = event.clientY;
-            
-            // Find if we're over another node
-            const elementsAtPoint = document.elementsFromPoint(dropX, dropY);
-            const nodeElement = elementsAtPoint.find(el => 
-                el.classList.contains('custom-node') && 
-                el.closest('.react-flow__node')?.dataset?.id !== connectionSource
-            );
-            
-            if (nodeElement) {
-                const targetNodeId = nodeElement.closest('.react-flow__node')?.dataset?.id;
-                if (targetNodeId && targetNodeId !== connectionSource) {
-                    setRelationTargetId(targetNodeId);
-                    setCreateRelationModal(true);
-                }
-            }
+    // Handle connect (edge creation via drag from handle)
+    const onConnect = useCallback((params) => {
+        if (params.source && params.target && params.source !== params.target) {
+            setConnectionSource(params.source);
+            setRelationTargetId(params.target);
+            setConnectionMode(true);
+            setCreateRelationModal(true);
         }
-    }, [connectionMode, connectionSource]);
+    }, [setConnectionSource, setConnectionMode]);
 
     // Handle edge click
     const onEdgeClick = useCallback((event, edge) => {
@@ -297,6 +278,11 @@ export const GraphCanvas = () => {
             setSelectedView(null);
         }
     }, [visibleRelations, setSelectedRelation, setSelectedView, pathfindingMode, connectionMode]);
+
+    // Store React Flow instance
+    const onInit = useCallback((instance) => {
+        reactFlowInstance.current = instance;
+    }, [reactFlowInstance]);
 
     // Handle background click
     const onPaneClick = useCallback(() => {
@@ -311,19 +297,7 @@ export const GraphCanvas = () => {
         }
     }, [setSelectedView, setSelectedRelation, pathfindingMode, connectionMode, clearConnectionMode]);
 
-    // Store React Flow instance
-    const onInit = useCallback((instance) => {
-        reactFlowInstance.current = instance;
-    }, [reactFlowInstance]);
 
-    // Handle connect (edge creation via drag)
-    const onConnect = useCallback((params) => {
-        if (params.source && params.target) {
-            setConnectionSource(params.source);
-            setRelationTargetId(params.target);
-            setCreateRelationModal(true);
-        }
-    }, [setConnectionSource]);
 
     // Empty state
     if (visibleViews.length === 0) {
@@ -355,7 +329,6 @@ export const GraphCanvas = () => {
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onNodeClick={onNodeClick}
-                onNodeDragStop={onNodeDragStop}
                 onEdgeClick={onEdgeClick}
                 onPaneClick={onPaneClick}
                 onInit={onInit}

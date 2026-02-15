@@ -1,7 +1,7 @@
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import { Handle, Position } from 'reactflow';
 import { useApp } from '../../context/AppContext';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Plus } from 'lucide-react';
 import {
     ContextMenu,
     ContextMenuContent,
@@ -25,6 +25,8 @@ export const CustomNode = memo(({ data, selected }) => {
         setSelectedView,
         views
     } = useApp();
+    
+    const [isHovered, setIsHovered] = useState(false);
     
     const isPathNode = foundPath?.nodes?.includes(data.id);
     const isPathStart = pathStart === data.id;
@@ -73,7 +75,7 @@ export const CustomNode = memo(({ data, selected }) => {
 
     return (
         <ContextMenu>
-            <ContextMenuTrigger>
+            <ContextMenuTrigger asChild>
                 <div 
                     className={`
                         custom-node ${sizeClass}
@@ -91,27 +93,49 @@ export const CustomNode = memo(({ data, selected }) => {
                             ? '0 0 12px rgba(16, 185, 129, 0.5)' 
                             : (isConnectionSource ? '0 0 12px rgba(245, 158, 11, 0.5)' : undefined)
                     }}
+                    onMouseEnter={() => setIsHovered(true)}
+                    onMouseLeave={() => setIsHovered(false)}
                 >
                     <Handle
                         type="target"
                         position={Position.Top}
-                        className="node-handle-large"
+                        className="node-handle-invisible"
                         isConnectable={true}
                     />
                     
-                    {/* New badge */}
+                    {(isHovered || isConnectionSource) && !pathfindingMode && (
+                        <button 
+                            className="connection-handle-button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                handleStartConnection();
+                            }}
+                            onMouseDown={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                            }}
+                            onContextMenu={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                            }}
+                            type="button"
+                            aria-label="Create relation from this node"
+                        >
+                            <Plus className="w-3 h-3" />
+                        </button>
+                    )}
+                    
                     {isNew && (
                         <div className="absolute -top-2 -right-2 w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center z-10">
                             <Sparkles className="w-2.5 h-2.5 text-white" />
                         </div>
                     )}
                     
-                    {/* Main name */}
                     <div className="font-semibold truncate leading-tight" title={data.alias || data.name}>
                         {truncatedName}
                     </div>
                     
-                    {/* ID badge */}
                     {settings.showViewId && (
                         <div className="flex items-center justify-center gap-1.5 mt-1">
                             <span className="node-id-badge">
@@ -126,7 +150,6 @@ export const CustomNode = memo(({ data, selected }) => {
                         </div>
                     )}
                     
-                    {/* Show original name if different from alias */}
                     {settings.showAlias && data.alias && data.name !== data.alias && (
                         <div className="text-[10px] text-muted-foreground mt-0.5 truncate opacity-70" title={data.name}>
                             {data.name?.substring(0, 25)}{data.name?.length > 25 ? '..' : ''}
@@ -135,8 +158,8 @@ export const CustomNode = memo(({ data, selected }) => {
                     
                     <Handle
                         type="source"
-                        position={Position.Bottom}
-                        className="node-handle-large"
+                        position={Position.Top}
+                        className="node-handle-invisible"
                         isConnectable={true}
                     />
                 </div>

@@ -49,6 +49,7 @@ export const Toolbar = () => {
         settings,
         toggleTheme, 
         clearAllData, 
+        clearNewItems,
         fetchData, 
         loading,
         pathfindingMode,
@@ -70,6 +71,7 @@ export const Toolbar = () => {
     const [createRelationModalOpen, setCreateRelationModalOpen] = useState(false);
     const [settingsModalOpen, setSettingsModalOpen] = useState(false);
     const [clearDialogOpen, setClearDialogOpen] = useState(false);
+    const [clearNewDialogOpen, setClearNewDialogOpen] = useState(false);
 
     const handleClearAll = async () => {
         try {
@@ -79,6 +81,16 @@ export const Toolbar = () => {
             toast.error('Error eliminant les dades');
         }
         setClearDialogOpen(false);
+    };
+
+    const handleClearNewItems = async () => {
+        try {
+            await clearNewItems();
+            toast.success('Tots els elements nous han estat eliminats');
+        } catch (err) {
+            toast.error('Error eliminant elements nous');
+        }
+        setClearNewDialogOpen(false);
     };
 
     const handleRefresh = async () => {
@@ -277,6 +289,15 @@ export const Toolbar = () => {
                                     Copiar relacions noves ({newRelations.length})
                                 </DropdownMenuItem>
                             )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                                onClick={() => setClearNewDialogOpen(true)} 
+                                className="text-destructive focus:text-destructive"
+                                data-testid="delete-all-new"
+                            >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Eliminar nous ({newViews.length + newRelations.length})
+                            </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
                 )}
@@ -396,6 +417,31 @@ export const Toolbar = () => {
                                 data-testid="confirm-clear-btn"
                             >
                                 Eliminar tot
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+
+                {/* Clear New Items Confirmation Dialog */}
+                <AlertDialog open={clearNewDialogOpen} onOpenChange={setClearNewDialogOpen}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Eliminar tots els elements nous?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Aquesta acció eliminarà {newViews.length} vistes i {newRelations.length} relacions noves de forma permanent.
+                                No es pot desfer.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel data-testid="cancel-clear-new-btn">
+                                Cancel·lar
+                            </AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={handleClearNewItems}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                data-testid="confirm-clear-new-btn"
+                            >
+                                Eliminar nous
                             </AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>
