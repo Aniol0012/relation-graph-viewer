@@ -20,31 +20,14 @@ import {
     SelectValue,
 } from '../ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { ScrollArea } from '../ui/scroll-area';
 import { Settings, Palette, Layout, Eye, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
-
-// Suppress ResizeObserver errors
-if (typeof window !== 'undefined') {
-    const resizeObserverErr = window.onerror;
-    window.onerror = function(msg, url, line, col, error) {
-        if (msg && msg.toString().includes('ResizeObserver')) {
-            return true;
-        }
-        if (resizeObserverErr) {
-            return resizeObserverErr(msg, url, line, col, error);
-        }
-        return false;
-    };
-}
 
 export const SettingsModal = ({ open, onOpenChange }) => {
     const { settings, updateSettings, resetSettings, defaultSettings } = useApp();
     
-    // Use local state to batch updates
     const [localSettings, setLocalSettings] = useState({ ...settings });
 
-    // Sync when modal opens
     useEffect(() => {
         if (open) {
             setLocalSettings({ ...settings });
@@ -62,7 +45,6 @@ export const SettingsModal = ({ open, onOpenChange }) => {
         }));
     };
 
-    // Apply changes when closing or explicitly
     const applyChanges = () => {
         updateSettings(localSettings);
     };
@@ -78,7 +60,6 @@ export const SettingsModal = ({ open, onOpenChange }) => {
         toast.success('Configuració restablerta');
     };
 
-    // Debounced apply for sliders
     useEffect(() => {
         const timer = setTimeout(() => {
             if (open) {
@@ -86,9 +67,8 @@ export const SettingsModal = ({ open, onOpenChange }) => {
             }
         }, 200);
         return () => clearTimeout(timer);
-    }, [localSettings.nodeSpacing, localSettings.levelSpacing, localSettings.maxNodeNameLength]);
+    }, [localSettings.nodeSpacing, localSettings.levelSpacing, localSettings.maxNodeNameLength, open, updateSettings]);
 
-    // Immediate apply for toggles and selects
     const handleImmediateChange = (key, value) => {
         handleLocalChange(key, value);
         updateSettings({ [key]: value });
@@ -139,7 +119,6 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                     </TabsList>
 
                     <div className="flex-1 mt-4 overflow-y-auto pr-2" style={{ maxHeight: 'calc(85vh - 220px)' }}>
-                        {/* Display Settings */}
                         <TabsContent value="display" className="space-y-6 mt-0">
                             <div className="space-y-4">
                                 <h4 className="font-medium text-sm">Nodes</h4>
@@ -265,7 +244,6 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                             </div>
                         </TabsContent>
 
-                        {/* Colors Settings */}
                         <TabsContent value="colors" className="space-y-4 mt-0">
                             <p className="text-sm text-muted-foreground">
                                 Personalitza els colors de cada tipus de JOIN
@@ -306,7 +284,6 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                             </div>
                         </TabsContent>
 
-                        {/* Layout Settings */}
                         <TabsContent value="layout" className="space-y-6 mt-0">
                             <div>
                                 <Label>Direcció del layout</Label>
@@ -354,7 +331,6 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                     </div>
                 </Tabs>
 
-                {/* Footer */}
                 <div className="flex gap-2 pt-4 border-t">
                     <Button
                         variant="outline"
