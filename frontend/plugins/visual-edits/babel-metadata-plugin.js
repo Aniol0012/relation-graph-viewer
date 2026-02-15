@@ -6,7 +6,7 @@ const fs = require("fs");
 // ───────────────────────────────────────────────────────────────────────────────
 // ===== Dynamic composite detection (auto-exclude) =====
 const EXTENSIONS = [".tsx", ".ts", ".jsx", ".js"];
-const PROJECT_ROOT = path.resolve(__dirname, '../..'); // frontend root (../../ from plugins/visual-edits/)
+const PROJECT_ROOT = path.resolve(__dirname, "../.."); // frontend root (../../ from plugins/visual-edits/)
 const SRC_ALIAS = path.resolve(PROJECT_ROOT, "src");
 
 const RESOLVE_CACHE = new Map(); // key: fromFile::source -> absPath | null
@@ -130,10 +130,7 @@ const buildDynamicExpressionWrapper = (child, t) =>
           t.jsxIdentifier("data-ve-dynamic"),
           t.stringLiteral("true"),
         ),
-        t.jsxAttribute(
-          t.jsxIdentifier("x-excluded"),
-          t.stringLiteral("true"),
-        ),
+        t.jsxAttribute(t.jsxIdentifier("x-excluded"), t.stringLiteral("true")),
         t.jsxAttribute(
           t.jsxIdentifier("style"),
           t.jsxExpressionContainer(
@@ -520,10 +517,18 @@ const babelMetadataPlugin = ({ types: t }) => {
     }
 
     // Check for props (function parameters)
-    if (bindingPath.isIdentifier() && bindingPath.parentPath.isFunctionDeclaration()) {
+    if (
+      bindingPath.isIdentifier() &&
+      bindingPath.parentPath.isFunctionDeclaration()
+    ) {
       // Try to trace the prop back to its source in the same file
       const componentName = getContainingComponentName(exprPath);
-      const tracedSource = tracePropToSource(name, componentName, exprPath, state);
+      const tracedSource = tracePropToSource(
+        name,
+        componentName,
+        exprPath,
+        state,
+      );
 
       if (tracedSource && tracedSource.isEditable) {
         return {
@@ -544,19 +549,32 @@ const babelMetadataPlugin = ({ types: t }) => {
     }
 
     // Check if it's a destructured prop from function params
-    if (bindingPath.isObjectPattern() ||
-        (bindingPath.parentPath && bindingPath.parentPath.isObjectPattern())) {
-      const funcParent = bindingPath.findParent(p =>
-        p.isFunctionDeclaration() || p.isArrowFunctionExpression() || p.isFunctionExpression()
+    if (
+      bindingPath.isObjectPattern() ||
+      (bindingPath.parentPath && bindingPath.parentPath.isObjectPattern())
+    ) {
+      const funcParent = bindingPath.findParent(
+        (p) =>
+          p.isFunctionDeclaration() ||
+          p.isArrowFunctionExpression() ||
+          p.isFunctionExpression(),
       );
-      if (funcParent && funcParent.node.params.some(param => {
-        if (t.isIdentifier(param)) return false;
-        if (t.isObjectPattern(param)) return true;
-        return false;
-      })) {
+      if (
+        funcParent &&
+        funcParent.node.params.some((param) => {
+          if (t.isIdentifier(param)) return false;
+          if (t.isObjectPattern(param)) return true;
+          return false;
+        })
+      ) {
         // Try to trace the prop back to its source in the same file
         const componentName = getContainingComponentName(exprPath);
-        const tracedSource = tracePropToSource(name, componentName, exprPath, state);
+        const tracedSource = tracePropToSource(
+          name,
+          componentName,
+          exprPath,
+          state,
+        );
 
         if (tracedSource && tracedSource.isEditable) {
           return {
@@ -582,28 +600,43 @@ const babelMetadataPlugin = ({ types: t }) => {
       const init = bindingPath.node.init;
       if (t.isCallExpression(init) && t.isIdentifier(init.callee)) {
         const calleeName = init.callee.name;
-        if (calleeName === "useState" || calleeName === "useReducer" ||
-            calleeName === "useContext" || calleeName === "useMemo" ||
-            calleeName === "useCallback") {
+        if (
+          calleeName === "useState" ||
+          calleeName === "useReducer" ||
+          calleeName === "useContext" ||
+          calleeName === "useMemo" ||
+          calleeName === "useCallback"
+        ) {
           return { type: "state", varName: name, isEditable: false };
         }
       }
     }
 
     // Check for imports
-    if (bindingPath.isImportSpecifier() || bindingPath.isImportDefaultSpecifier()) {
+    if (
+      bindingPath.isImportSpecifier() ||
+      bindingPath.isImportDefaultSpecifier()
+    ) {
       const importDecl = bindingPath.parentPath.node;
       const source = importDecl.source.value;
 
       // Only track @/ and ./ imports as potentially editable
-      if (source.startsWith("@/") || source.startsWith("./") || source.startsWith("../")) {
-        const fileFrom = state.filename || state.file?.opts?.filename || __filename;
+      if (
+        source.startsWith("@/") ||
+        source.startsWith("./") ||
+        source.startsWith("../")
+      ) {
+        const fileFrom =
+          state.filename || state.file?.opts?.filename || __filename;
         const absPath = resolveImportPath(source, fileFrom);
 
         if (absPath) {
           // Get the original export name
           let exportName = name;
-          if (bindingPath.isImportSpecifier() && t.isIdentifier(bindingPath.node.imported)) {
+          if (
+            bindingPath.isImportSpecifier() &&
+            t.isIdentifier(bindingPath.node.imported)
+          ) {
             exportName = bindingPath.node.imported.name;
           }
 
@@ -632,7 +665,8 @@ const babelMetadataPlugin = ({ types: t }) => {
         const init = bindingPath.node.init;
 
         // Get the current file path for local variables
-        const currentFile = state.filename || state.file?.opts?.filename || null;
+        const currentFile =
+          state.filename || state.file?.opts?.filename || null;
 
         // Check if it's a simple editable value
         if (t.isStringLiteral(init) || t.isNumericLiteral(init)) {
@@ -771,10 +805,17 @@ const babelMetadataPlugin = ({ types: t }) => {
       if (current.isVariableDeclarator() && t.isIdentifier(current.node.id)) {
         return current.node.id.name;
       }
-      if (current.isArrowFunctionExpression() || current.isFunctionExpression()) {
+      if (
+        current.isArrowFunctionExpression() ||
+        current.isFunctionExpression()
+      ) {
         // Check if parent is variable declarator
         const parent = current.parentPath;
-        if (parent && parent.isVariableDeclarator() && t.isIdentifier(parent.node.id)) {
+        if (
+          parent &&
+          parent.isVariableDeclarator() &&
+          t.isIdentifier(parent.node.id)
+        ) {
           return parent.node.id.name;
         }
       }
@@ -794,7 +835,7 @@ const babelMetadataPlugin = ({ types: t }) => {
   function tracePropToSource(propName, componentName, exprPath, state) {
     if (!componentName) return null;
 
-    const programPath = exprPath.findParent(p => p.isProgram());
+    const programPath = exprPath.findParent((p) => p.isProgram());
     if (!programPath) return null;
 
     let tracedSource = null;
@@ -809,28 +850,30 @@ const babelMetadataPlugin = ({ types: t }) => {
         // Look for the prop being passed
         for (const attr of jsxPath.node.attributes || []) {
           if (!t.isJSXAttribute(attr)) continue;
-          if (!t.isJSXIdentifier(attr.name) || attr.name.name !== propName) continue;
+          if (!t.isJSXIdentifier(attr.name) || attr.name.name !== propName)
+            continue;
           if (!t.isJSXExpressionContainer(attr.value)) continue;
 
           // Found matching prop - analyze the expression passed to it
-          const attrs = jsxPath.get('attributes');
+          const attrs = jsxPath.get("attributes");
           const attrPath = attrs.find(
-            a => a.isJSXAttribute() &&
-                 t.isJSXIdentifier(a.node.name) &&
-                 a.node.name.name === propName
+            (a) =>
+              a.isJSXAttribute() &&
+              t.isJSXIdentifier(a.node.name) &&
+              a.node.name.name === propName,
           );
 
           if (attrPath) {
-            const valuePath = attrPath.get('value');
+            const valuePath = attrPath.get("value");
             if (valuePath && valuePath.isJSXExpressionContainer()) {
-              const innerExpr = valuePath.get('expression');
+              const innerExpr = valuePath.get("expression");
               if (innerExpr && innerExpr.node) {
                 tracedSource = analyzeExpression(innerExpr, state);
               }
             }
           }
         }
-      }
+      },
     });
 
     // If found in same file, return it
@@ -859,12 +902,12 @@ const babelMetadataPlugin = ({ types: t }) => {
       const propName = attr.name.name;
 
       // Find the attribute path
-      const attrPath = jsxPath.get('openingElement.attributes').find(
-        a => a.isJSXAttribute() && a.node.name?.name === propName
-      );
+      const attrPath = jsxPath
+        .get("openingElement.attributes")
+        .find((a) => a.isJSXAttribute() && a.node.name?.name === propName);
       if (!attrPath) continue;
 
-      const valuePath = attrPath.get('value.expression');
+      const valuePath = attrPath.get("value.expression");
       if (!valuePath?.node) continue;
 
       // Analyze the expression being passed
@@ -876,7 +919,7 @@ const babelMetadataPlugin = ({ types: t }) => {
       PROP_SOURCE_CACHE.set(cacheKey, {
         sourceInfo,
         arrayContext: arrayContext || sourceInfo?.arrayContext,
-        fromFile: state.filename
+        fromFile: state.filename,
       });
     }
   }
@@ -924,7 +967,10 @@ const babelMetadataPlugin = ({ types: t }) => {
           // Find the local name for this import
           let localName = null;
           for (const spec of importPath.node.specifiers) {
-            if (t.isImportSpecifier(spec) && spec.imported.name === componentName) {
+            if (
+              t.isImportSpecifier(spec) &&
+              spec.imported.name === componentName
+            ) {
               localName = spec.local.name;
             } else if (t.isImportDefaultSpecifier(spec)) {
               localName = spec.local.name;
@@ -943,15 +989,21 @@ const babelMetadataPlugin = ({ types: t }) => {
               // Find the prop
               for (const attr of jsxPath.node.attributes || []) {
                 if (!t.isJSXAttribute(attr)) continue;
-                if (!t.isJSXIdentifier(attr.name) || attr.name.name !== propName) continue;
+                if (
+                  !t.isJSXIdentifier(attr.name) ||
+                  attr.name.name !== propName
+                )
+                  continue;
                 if (!t.isJSXExpressionContainer(attr.value)) continue;
 
-                const attrPath = jsxPath.get('attributes').find(
-                  a => a.isJSXAttribute() && a.node.name?.name === propName
-                );
+                const attrPath = jsxPath
+                  .get("attributes")
+                  .find(
+                    (a) => a.isJSXAttribute() && a.node.name?.name === propName,
+                  );
 
                 if (attrPath) {
-                  const valuePath = attrPath.get('value.expression');
+                  const valuePath = attrPath.get("value.expression");
                   if (valuePath?.node) {
                     const mockState = { filename: absPath };
                     result = analyzeExpression(valuePath, mockState);
@@ -961,14 +1013,14 @@ const babelMetadataPlugin = ({ types: t }) => {
                     PROP_SOURCE_CACHE.set(cacheKey, {
                       sourceInfo: result,
                       arrayContext: result?.arrayContext,
-                      fromFile: absPath
+                      fromFile: absPath,
                     });
                   }
                 }
               }
-            }
+            },
           });
-        }
+        },
       });
 
       if (result) return result;
@@ -1009,7 +1061,10 @@ const babelMetadataPlugin = ({ types: t }) => {
     let itemParam = null;
     let indexParam = null;
 
-    if (t.isArrowFunctionExpression(callback) || t.isFunctionExpression(callback)) {
+    if (
+      t.isArrowFunctionExpression(callback) ||
+      t.isFunctionExpression(callback)
+    ) {
       const params = callback.params;
       if (params.length > 0 && t.isIdentifier(params[0])) {
         itemParam = params[0].name;
@@ -1031,7 +1086,12 @@ const babelMetadataPlugin = ({ types: t }) => {
     if (t.isIdentifier(arrayNode)) {
       arrayVar = arrayNode.name;
       // Pass skipArrayContext to avoid infinite recursion
-      const arrayInfo = analyzeIdentifier(arrayVar, callExprParent.get("callee.object"), state, { skipArrayContext: true });
+      const arrayInfo = analyzeIdentifier(
+        arrayVar,
+        callExprParent.get("callee.object"),
+        state,
+        { skipArrayContext: true },
+      );
 
       if (arrayInfo) {
         arrayFile = arrayInfo.file || null;
@@ -1044,7 +1104,7 @@ const babelMetadataPlugin = ({ types: t }) => {
       const memberInfo = analyzeMemberExpression(
         callExprParent.get("callee.object"),
         state,
-        { skipArrayContext: true }
+        { skipArrayContext: true },
       );
       if (memberInfo) {
         arrayVar = memberInfo.varName;
@@ -1087,7 +1147,10 @@ const babelMetadataPlugin = ({ types: t }) => {
         if (p.node.declaration && t.isVariableDeclaration(p.node.declaration)) {
           const decl = p.node.declaration;
           for (const declarator of decl.declarations) {
-            if (t.isIdentifier(declarator.id) && declarator.id.name === exportName) {
+            if (
+              t.isIdentifier(declarator.id) &&
+              declarator.id.name === exportName
+            ) {
               const init = declarator.init;
               let valueType = null;
               let isEditable = false;
@@ -1116,11 +1179,15 @@ const babelMetadataPlugin = ({ types: t }) => {
         // Check export { VARIABLE }
         if (p.node.specifiers) {
           for (const spec of p.node.specifiers) {
-            if (t.isExportSpecifier(spec) &&
-                t.isIdentifier(spec.exported) &&
-                spec.exported.name === exportName) {
+            if (
+              t.isExportSpecifier(spec) &&
+              t.isIdentifier(spec.exported) &&
+              spec.exported.name === exportName
+            ) {
               // Need to find the original declaration
-              const localName = t.isIdentifier(spec.local) ? spec.local.name : exportName;
+              const localName = t.isIdentifier(spec.local)
+                ? spec.local.name
+                : exportName;
               const binding = p.scope.getBinding(localName);
               if (binding && binding.path.isVariableDeclarator()) {
                 const init = binding.path.node.init;
@@ -1162,7 +1229,10 @@ const babelMetadataPlugin = ({ types: t }) => {
     const children = jsxElement.children || [];
 
     for (const child of children) {
-      if (t.isJSXExpressionContainer(child) && !t.isJSXEmptyExpression(child.expression)) {
+      if (
+        t.isJSXExpressionContainer(child) &&
+        !t.isJSXEmptyExpression(child.expression)
+      ) {
         // We found an expression - analyze it
         // Note: We need to create a path for the expression, but we only have the node
         // For now, we'll do basic analysis using the scope from the JSX element
@@ -1259,7 +1329,14 @@ const babelMetadataPlugin = ({ types: t }) => {
 
   const pushMetaAttrs = (
     openingEl,
-    { normalizedPath, lineNumber, elementName, isDynamic, sourceInfo, arrayContext },
+    {
+      normalizedPath,
+      lineNumber,
+      elementName,
+      isDynamic,
+      sourceInfo,
+      arrayContext,
+    },
     { markExcluded = false } = {},
   ) => {
     if (alreadyHasXMeta(openingEl)) return;
@@ -1296,42 +1373,60 @@ const babelMetadataPlugin = ({ types: t }) => {
       // x-source-type: static-local | static-imported | prop | state | computed | external
       if (sourceInfo.type) {
         metaAttrs.push(
-          t.jsxAttribute(t.jsxIdentifier("x-source-type"), t.stringLiteral(sourceInfo.type))
+          t.jsxAttribute(
+            t.jsxIdentifier("x-source-type"),
+            t.stringLiteral(sourceInfo.type),
+          ),
         );
       }
 
       // x-source-var: the variable name
       if (sourceInfo.varName) {
         metaAttrs.push(
-          t.jsxAttribute(t.jsxIdentifier("x-source-var"), t.stringLiteral(sourceInfo.varName))
+          t.jsxAttribute(
+            t.jsxIdentifier("x-source-var"),
+            t.stringLiteral(sourceInfo.varName),
+          ),
         );
       }
 
       // x-source-file: for imports, the import path
       if (sourceInfo.file) {
         metaAttrs.push(
-          t.jsxAttribute(t.jsxIdentifier("x-source-file"), t.stringLiteral(sourceInfo.file))
+          t.jsxAttribute(
+            t.jsxIdentifier("x-source-file"),
+            t.stringLiteral(sourceInfo.file),
+          ),
         );
       }
 
       // x-source-file-abs: absolute path for relative imports (needed by backend)
       if (sourceInfo.absFile) {
         metaAttrs.push(
-          t.jsxAttribute(t.jsxIdentifier("x-source-file-abs"), t.stringLiteral(sourceInfo.absFile))
+          t.jsxAttribute(
+            t.jsxIdentifier("x-source-file-abs"),
+            t.stringLiteral(sourceInfo.absFile),
+          ),
         );
       }
 
       // x-source-line: line number in source file
       if (sourceInfo.line) {
         metaAttrs.push(
-          t.jsxAttribute(t.jsxIdentifier("x-source-line"), t.stringLiteral(String(sourceInfo.line)))
+          t.jsxAttribute(
+            t.jsxIdentifier("x-source-line"),
+            t.stringLiteral(String(sourceInfo.line)),
+          ),
         );
       }
 
       // x-source-path: for object property access (e.g., "name" or "address.city")
       if (sourceInfo.path) {
         metaAttrs.push(
-          t.jsxAttribute(t.jsxIdentifier("x-source-path"), t.stringLiteral(sourceInfo.path))
+          t.jsxAttribute(
+            t.jsxIdentifier("x-source-path"),
+            t.stringLiteral(sourceInfo.path),
+          ),
         );
       }
 
@@ -1339,8 +1434,8 @@ const babelMetadataPlugin = ({ types: t }) => {
       metaAttrs.push(
         t.jsxAttribute(
           t.jsxIdentifier("x-source-editable"),
-          t.stringLiteral(sourceInfo.isEditable ? "true" : "false")
-        )
+          t.stringLiteral(sourceInfo.isEditable ? "true" : "false"),
+        ),
       );
     }
 
@@ -1348,22 +1443,34 @@ const babelMetadataPlugin = ({ types: t }) => {
     if (arrayContext) {
       if (arrayContext.arrayVar) {
         metaAttrs.push(
-          t.jsxAttribute(t.jsxIdentifier("x-array-var"), t.stringLiteral(arrayContext.arrayVar))
+          t.jsxAttribute(
+            t.jsxIdentifier("x-array-var"),
+            t.stringLiteral(arrayContext.arrayVar),
+          ),
         );
       }
       if (arrayContext.arrayFile) {
         metaAttrs.push(
-          t.jsxAttribute(t.jsxIdentifier("x-array-file"), t.stringLiteral(arrayContext.arrayFile))
+          t.jsxAttribute(
+            t.jsxIdentifier("x-array-file"),
+            t.stringLiteral(arrayContext.arrayFile),
+          ),
         );
       }
       if (arrayContext.arrayLine) {
         metaAttrs.push(
-          t.jsxAttribute(t.jsxIdentifier("x-array-line"), t.stringLiteral(String(arrayContext.arrayLine)))
+          t.jsxAttribute(
+            t.jsxIdentifier("x-array-line"),
+            t.stringLiteral(String(arrayContext.arrayLine)),
+          ),
         );
       }
       if (arrayContext.itemParam) {
         metaAttrs.push(
-          t.jsxAttribute(t.jsxIdentifier("x-array-item-param"), t.stringLiteral(arrayContext.itemParam))
+          t.jsxAttribute(
+            t.jsxIdentifier("x-array-item-param"),
+            t.stringLiteral(arrayContext.itemParam),
+          ),
         );
       }
     }
@@ -1716,7 +1823,10 @@ const babelMetadataPlugin = ({ types: t }) => {
 
         // Only process capitalized components (React components)
         if (!/^[A-Z]/.test(elementName)) {
-          if (hasProp(openingElement, "data-ve-dynamic") || hasProp(openingElement, "x-excluded")) {
+          if (
+            hasProp(openingElement, "data-ve-dynamic") ||
+            hasProp(openingElement, "x-excluded")
+          ) {
             return;
           }
           wrapDynamicExpressionChildren(jsxPath, t);
@@ -1851,7 +1961,7 @@ const babelMetadataPlugin = ({ types: t }) => {
         // depends on whether they're static strings, not on the component's internal implementation.
         if (!isDynamic) {
           const hasStaticTextChildren = jsxPath.node.children.some(
-            (child) => t.isJSXText(child) && child.value.trim()
+            (child) => t.isJSXText(child) && child.value.trim(),
           );
           if (!hasStaticTextChildren) {
             const binding = jsxPath.scope.getBinding(elementName);
@@ -1870,7 +1980,10 @@ const babelMetadataPlugin = ({ types: t }) => {
           const children = jsxPath.node.children || [];
           for (let i = 0; i < children.length; i++) {
             const child = children[i];
-            if (t.isJSXExpressionContainer(child) && !t.isJSXEmptyExpression(child.expression)) {
+            if (
+              t.isJSXExpressionContainer(child) &&
+              !t.isJSXEmptyExpression(child.expression)
+            ) {
               // Get the path to this expression container
               const exprContainerPath = jsxPath.get(`children.${i}`);
               if (exprContainerPath && exprContainerPath.node) {
@@ -1934,7 +2047,14 @@ const babelMetadataPlugin = ({ types: t }) => {
         ) {
           pushMetaAttrs(
             openingElement,
-            { normalizedPath, lineNumber, elementName, isDynamic, sourceInfo, arrayContext },
+            {
+              normalizedPath,
+              lineNumber,
+              elementName,
+              isDynamic,
+              sourceInfo,
+              arrayContext,
+            },
             { markExcluded: true },
           );
           return;
@@ -1955,17 +2075,28 @@ const babelMetadataPlugin = ({ types: t }) => {
           // Composite portal: stamp + mark excluded
           pushMetaAttrs(
             openingElement,
-            { normalizedPath, lineNumber, elementName, isDynamic, sourceInfo, arrayContext },
+            {
+              normalizedPath,
+              lineNumber,
+              elementName,
+              isDynamic,
+              sourceInfo,
+              arrayContext,
+            },
             { markExcluded: true },
           );
           return;
         }
 
         // ✅ Normal case: add metadata attributes directly
-        pushMetaAttrs(
-          openingElement,
-          { normalizedPath, lineNumber, elementName, isDynamic, sourceInfo, arrayContext },
-        );
+        pushMetaAttrs(openingElement, {
+          normalizedPath,
+          lineNumber,
+          elementName,
+          isDynamic,
+          sourceInfo,
+          arrayContext,
+        });
       },
 
       // Add metadata to native HTML elements (lowercase JSX)
@@ -2015,8 +2146,13 @@ const babelMetadataPlugin = ({ types: t }) => {
         // 1. Inside an array iteration (.map(), etc.)
         // 2. Has expression children (like {variable} or {obj.prop})
         const parentElement = jsxPath.parentPath; // JSXElement containing this opening element
-        const isInArrayMethod = parentElement ? isJSXDynamic(parentElement) : false;
-        const hasExpressions = parentElement && parentElement.node ? hasAnyExpression(parentElement.node) : false;
+        const isInArrayMethod = parentElement
+          ? isJSXDynamic(parentElement)
+          : false;
+        const hasExpressions =
+          parentElement && parentElement.node
+            ? hasAnyExpression(parentElement.node)
+            : false;
         const isDynamic = isInArrayMethod || hasExpressions;
 
         // Analyze expression sources if element has expressions
@@ -2028,7 +2164,10 @@ const babelMetadataPlugin = ({ types: t }) => {
           const children = parentElement.node.children || [];
           for (let i = 0; i < children.length; i++) {
             const child = children[i];
-            if (t.isJSXExpressionContainer(child) && !t.isJSXEmptyExpression(child.expression)) {
+            if (
+              t.isJSXExpressionContainer(child) &&
+              !t.isJSXEmptyExpression(child.expression)
+            ) {
               // Get the path to this expression container
               const exprContainerPath = parentElement.get(`children.${i}`);
               if (exprContainerPath && exprContainerPath.node) {
@@ -2089,39 +2228,57 @@ const babelMetadataPlugin = ({ types: t }) => {
         if (sourceInfo) {
           if (sourceInfo.type) {
             metaAttrs.push(
-              t.jsxAttribute(t.jsxIdentifier("x-source-type"), t.stringLiteral(sourceInfo.type))
+              t.jsxAttribute(
+                t.jsxIdentifier("x-source-type"),
+                t.stringLiteral(sourceInfo.type),
+              ),
             );
           }
           if (sourceInfo.varName) {
             metaAttrs.push(
-              t.jsxAttribute(t.jsxIdentifier("x-source-var"), t.stringLiteral(sourceInfo.varName))
+              t.jsxAttribute(
+                t.jsxIdentifier("x-source-var"),
+                t.stringLiteral(sourceInfo.varName),
+              ),
             );
           }
           if (sourceInfo.file) {
             metaAttrs.push(
-              t.jsxAttribute(t.jsxIdentifier("x-source-file"), t.stringLiteral(sourceInfo.file))
+              t.jsxAttribute(
+                t.jsxIdentifier("x-source-file"),
+                t.stringLiteral(sourceInfo.file),
+              ),
             );
           }
           if (sourceInfo.absFile) {
             metaAttrs.push(
-              t.jsxAttribute(t.jsxIdentifier("x-source-file-abs"), t.stringLiteral(sourceInfo.absFile))
+              t.jsxAttribute(
+                t.jsxIdentifier("x-source-file-abs"),
+                t.stringLiteral(sourceInfo.absFile),
+              ),
             );
           }
           if (sourceInfo.line) {
             metaAttrs.push(
-              t.jsxAttribute(t.jsxIdentifier("x-source-line"), t.stringLiteral(String(sourceInfo.line)))
+              t.jsxAttribute(
+                t.jsxIdentifier("x-source-line"),
+                t.stringLiteral(String(sourceInfo.line)),
+              ),
             );
           }
           if (sourceInfo.path) {
             metaAttrs.push(
-              t.jsxAttribute(t.jsxIdentifier("x-source-path"), t.stringLiteral(sourceInfo.path))
+              t.jsxAttribute(
+                t.jsxIdentifier("x-source-path"),
+                t.stringLiteral(sourceInfo.path),
+              ),
             );
           }
           metaAttrs.push(
             t.jsxAttribute(
               t.jsxIdentifier("x-source-editable"),
-              t.stringLiteral(sourceInfo.isEditable ? "true" : "false")
-            )
+              t.stringLiteral(sourceInfo.isEditable ? "true" : "false"),
+            ),
           );
         }
 
@@ -2129,22 +2286,34 @@ const babelMetadataPlugin = ({ types: t }) => {
         if (arrayContext) {
           if (arrayContext.arrayVar) {
             metaAttrs.push(
-              t.jsxAttribute(t.jsxIdentifier("x-array-var"), t.stringLiteral(arrayContext.arrayVar))
+              t.jsxAttribute(
+                t.jsxIdentifier("x-array-var"),
+                t.stringLiteral(arrayContext.arrayVar),
+              ),
             );
           }
           if (arrayContext.arrayFile) {
             metaAttrs.push(
-              t.jsxAttribute(t.jsxIdentifier("x-array-file"), t.stringLiteral(arrayContext.arrayFile))
+              t.jsxAttribute(
+                t.jsxIdentifier("x-array-file"),
+                t.stringLiteral(arrayContext.arrayFile),
+              ),
             );
           }
           if (arrayContext.arrayLine) {
             metaAttrs.push(
-              t.jsxAttribute(t.jsxIdentifier("x-array-line"), t.stringLiteral(String(arrayContext.arrayLine)))
+              t.jsxAttribute(
+                t.jsxIdentifier("x-array-line"),
+                t.stringLiteral(String(arrayContext.arrayLine)),
+              ),
             );
           }
           if (arrayContext.itemParam) {
             metaAttrs.push(
-              t.jsxAttribute(t.jsxIdentifier("x-array-item-param"), t.stringLiteral(arrayContext.itemParam))
+              t.jsxAttribute(
+                t.jsxIdentifier("x-array-item-param"),
+                t.stringLiteral(arrayContext.itemParam),
+              ),
             );
           }
         }
