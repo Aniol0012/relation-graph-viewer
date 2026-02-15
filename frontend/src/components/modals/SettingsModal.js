@@ -67,7 +67,7 @@ export const SettingsModal = ({ open, onOpenChange }) => {
             }
         }, 200);
         return () => clearTimeout(timer);
-    }, [localSettings.nodeSpacing, localSettings.levelSpacing, localSettings.maxNodeNameLength, open, updateSettings]);
+    }, [localSettings, open, updateSettings]);
 
     const handleImmediateChange = (key, value) => {
         handleLocalChange(key, value);
