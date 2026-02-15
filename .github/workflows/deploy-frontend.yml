@@ -16,17 +16,17 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: Install dependencies
         working-directory: ./frontend
-        run: yarn install --frozen-lockfile
+        run: npm ci
 
       - name: Build
         working-directory: ./frontend
         env:
           REACT_APP_BACKEND_URL: ${{ secrets.BACKEND_URL }}
-        run: yarn build
+        run: npm run build
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
