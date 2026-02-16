@@ -978,8 +978,16 @@ const babelMetadataPlugin = ({ types: t }) => {
           }
           if (!localName) return;
 
-          // Search for usages of this component
-          importPath.parentPath.parentPath.traverse({
+          // Search for usages of this component.
+          // Some AST roots do not have parentPath.parentPath, so we must guard it.
+          const searchRoot =
+            importPath.findParent((p) => p.isProgram()) || importPath.parentPath;
+
+          if (!searchRoot || typeof searchRoot.traverse !== "function") {
+            return;
+          }
+
+          searchRoot.traverse({
             JSXOpeningElement(jsxPath) {
               if (result) return;
 

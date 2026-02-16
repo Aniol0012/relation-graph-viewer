@@ -8,8 +8,14 @@ import React, {
 } from "react";
 import axios from "axios";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL?.trim();
+const HAS_BACKEND_CONFIG =
+  !!BACKEND_URL &&
+  BACKEND_URL !== "undefined" &&
+  BACKEND_URL !== "null";
+const API = HAS_BACKEND_CONFIG ? `${BACKEND_URL}/api` : null;
+const LOCAL_GRAPH_DATA_KEY = "dbgraph_graph_data";
+const APP_VERSION = "v1.1.0";
 
 const AppContext = createContext(null);
 
@@ -47,6 +53,191 @@ const defaultSettings = {
 
   // Details panel width
   detailsPanelWidth: 380,
+};
+
+const safeParse = (value, fallback) => {
+  try {
+    return JSON.parse(value);
+  } catch (e) {
+    return fallback;
+  }
+};
+
+const buildDisplayName = (view) =>
+  view?.alias || view?.name || `View_${view?.view_id}`;
+
+const normalizeNode = (view) => ({
+  ...view,
+  id: String(view.id ?? view.view_id),
+  view_id: Number(view.view_id),
+  name: view.name || "",
+  name2: view.name2 ?? null,
+  alias: view.alias ?? null,
+  display_name: buildDisplayName(view),
+});
+
+const normalizeEdge = (relation) => ({
+  ...relation,
+  id: String(relation.id),
+  source: String(relation.source ?? relation.id_view1),
+  target: String(relation.target ?? relation.id_view2),
+  relation: relation.relation || "",
+  relation2: relation.relation2 ?? null,
+  edge_weight: Number(relation.edge_weight ?? 10),
+});
+
+const splitSqlValues = (valuesStr) => {
+  const values = [];
+  let current = "";
+  let inString = false;
+  let quoteChar = null;
+
+  for (let i = 0; i < valuesStr.length; i += 1) {
+    const char = valuesStr[i];
+    const nextChar = valuesStr[i + 1];
+
+    if ((char === "'" || char === '"') && !inString) {
+      inString = true;
+      quoteChar = char;
+      current += char;
+      continue;
+    }
+
+    if (inString && char === quoteChar) {
+      if (quoteChar === "'" && nextChar === "'") {
+        current += "''";
+        i += 1;
+        continue;
+      }
+      inString = false;
+      quoteChar = null;
+      current += char;
+      continue;
+    }
+
+    if (!inString && char === ",") {
+      values.push(current.trim());
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  values.push(current.trim());
+  return values;
+};
+
+const cleanSqlValue = (rawValue) => {
+  if (rawValue == null) return null;
+  const trimmed = rawValue.trim();
+  if (trimmed.toUpperCase() === "NULL") return null;
+
+  if (
+    (trimmed.startsWith("'") && trimmed.endsWith("'")) ||
+    (trimmed.startsWith('"') && trimmed.endsWith('"'))
+  ) {
+    return trimmed.slice(1, -1).replace(/''/g, "'");
+  }
+
+  return trimmed;
+};
+
+const parseViewInsert = (sql) => {
+  const match = sql.match(
+    /INSERT\s+INTO\s+Report_View\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i,
+  );
+  if (!match) return null;
+
+  const columns = match[1].split(",").map((col) => col.trim().toLowerCase());
+  const values = splitSqlValues(match[2]);
+  const colMapping = {
+    idview: "view_id",
+    viewid: "view_id",
+    name: "name",
+    name2: "name2",
+    alias: "alias",
+  };
+
+  const result = {};
+  columns.forEach((col, index) => {
+    const mapped = colMapping[col.replace(/\s+/g, "")];
+    if (!mapped) return;
+
+    let value = cleanSqlValue(values[index]);
+    if (mapped === "view_id") {
+      value = Number(value);
+      if (!Number.isInteger(value)) return;
+    }
+    result[mapped] = value;
+  });
+
+  if (!Number.isInteger(result.view_id) || !result.name) {
+    return null;
+  }
+
+  return result;
+};
+
+const parseViewRelationInsert = (sql) => {
+  const match = sql.match(
+    /INSERT\s+INTO\s+Report_ViewRelation\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i,
+  );
+  if (!match) return null;
+
+  const columns = match[1].split(",").map((col) => col.trim().toLowerCase());
+  const values = splitSqlValues(match[2]);
+  const colMapping = {
+    idview1: "id_view1",
+    idview2: "id_view2",
+    relation: "relation",
+    relation2: "relation2",
+    edgeweight: "edge_weight",
+    minappversion: "min_app_version",
+    maxappversion: "max_app_version",
+    changeowner: "change_owner",
+  };
+
+  const numericFields = new Set([
+    "id_view1",
+    "id_view2",
+    "edge_weight",
+    "min_app_version",
+    "max_app_version",
+    "change_owner",
+  ]);
+
+  const result = {};
+  columns.forEach((col, index) => {
+    const mapped = colMapping[col.replace(/\s+/g, "")];
+    if (!mapped) return;
+
+    let value = cleanSqlValue(values[index]);
+
+    if (numericFields.has(mapped)) {
+      if (value == null) {
+        result[mapped] = null;
+        return;
+      }
+      value = Number(value);
+      if (!Number.isInteger(value)) {
+        if (mapped === "id_view1" || mapped === "id_view2") return;
+        value = null;
+      }
+    }
+
+    result[mapped] = value;
+  });
+
+  if (
+    !Number.isInteger(result.id_view1) ||
+    !Number.isInteger(result.id_view2) ||
+    !result.relation
+  ) {
+    return null;
+  }
+
+  return result;
 };
 
 export const useApp = () => {
@@ -102,6 +293,9 @@ export const AppProvider = ({ children }) => {
   const [relations, setRelations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [dataSource, setDataSource] = useState(
+    HAS_BACKEND_CONFIG ? "server" : "local",
+  );
 
   // UI state
   const [selectedView, setSelectedView] = useState(null);
@@ -286,26 +480,110 @@ export const AppProvider = ({ children }) => {
     }
   }, []);
 
+  const saveLocalGraphData = useCallback((nodes, edges) => {
+    try {
+      localStorage.setItem(
+        LOCAL_GRAPH_DATA_KEY,
+        JSON.stringify({ nodes: nodes || [], edges: edges || [] }),
+      );
+    } catch (e) {
+      console.warn("Error saving graph data:", e);
+    }
+  }, []);
+
+  const loadLocalGraphData = useCallback(() => {
+    const fallback = { nodes: [], edges: [] };
+    const saved = localStorage.getItem(LOCAL_GRAPH_DATA_KEY);
+    if (!saved) return fallback;
+    const parsed = safeParse(saved, fallback);
+    if (!parsed || typeof parsed !== "object") return fallback;
+    return {
+      nodes: Array.isArray(parsed.nodes) ? parsed.nodes.map(normalizeNode) : [],
+      edges: Array.isArray(parsed.edges)
+        ? parsed.edges.map(normalizeEdge)
+        : [],
+    };
+  }, []);
+
+  const applyGraphData = useCallback(
+    (nodes, edges, source = "local", externalStats = null) => {
+      const normalizedNodes = (nodes || []).map(normalizeNode);
+      const normalizedEdges = (edges || []).map(normalizeEdge);
+
+      setViews(normalizedNodes);
+      setRelations(normalizedEdges);
+      setStats(
+        externalStats || {
+          views_count: normalizedNodes.length,
+          relations_count: normalizedEdges.length,
+        },
+      );
+      setDataSource(source);
+      saveLocalGraphData(normalizedNodes, normalizedEdges);
+    },
+    [saveLocalGraphData],
+  );
+
+  const shouldUseLocalFallback = useCallback((err) => {
+    if (!HAS_BACKEND_CONFIG) return true;
+    if (!err?.response) return true;
+    return err.response.status >= 500;
+  }, []);
+
+  const runWithLocalFallback = useCallback(
+    async (serverOperation, localOperation) => {
+      if (!HAS_BACKEND_CONFIG) {
+        return localOperation();
+      }
+
+      try {
+        const result = await serverOperation();
+        setDataSource("server");
+        return result;
+      } catch (err) {
+        if (shouldUseLocalFallback(err)) {
+          return localOperation();
+        }
+        throw err;
+      }
+    },
+    [shouldUseLocalFallback],
+  );
+
   // Fetch data
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
+      if (!HAS_BACKEND_CONFIG) {
+        const localData = loadLocalGraphData();
+        applyGraphData(localData.nodes, localData.edges, "local");
+        return;
+      }
+
       const [graphRes, statsRes] = await Promise.all([
         axios.get(`${API}/graph-data`),
         axios.get(`${API}/stats`),
       ]);
 
-      setViews(graphRes.data.nodes || []);
-      setRelations(graphRes.data.edges || []);
-      setStats(statsRes.data);
+      applyGraphData(
+        graphRes.data.nodes || [],
+        graphRes.data.edges || [],
+        "server",
+        statsRes.data,
+      );
     } catch (err) {
       console.error("Error fetching data:", err);
-      setError("Error carregant les dades");
+      if (shouldUseLocalFallback(err)) {
+        const localData = loadLocalGraphData();
+        applyGraphData(localData.nodes, localData.edges, "local");
+      } else {
+        setError("Error carregant les dades");
+      }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [applyGraphData, loadLocalGraphData, shouldUseLocalFallback]);
 
   // Initial fetch
   useEffect(() => {
@@ -450,25 +728,116 @@ export const AppProvider = ({ children }) => {
   // Import SQL
   const importSql = useCallback(
     async (sql, isInitialImport = true) => {
-      try {
-        const response = await axios.post(`${API}/import-sql`, { sql });
+      return runWithLocalFallback(
+        async () => {
+          const response = await axios.post(`${API}/import-sql`, { sql });
 
-        if (isInitialImport) {
-          setLastImportedSql(sql);
-          const graphRes = await axios.get(`${API}/graph-data`);
-          const viewIds = (graphRes.data.nodes || []).map((v) => v.view_id);
-          const relationIds = (graphRes.data.edges || []).map((r) => r.id);
-          setOriginalImportedIds({ views: viewIds, relations: relationIds });
-        }
+          if (isInitialImport) {
+            setLastImportedSql(sql);
+            const graphRes = await axios.get(`${API}/graph-data`);
+            const viewIds = (graphRes.data.nodes || []).map((v) => v.view_id);
+            const relationIds = (graphRes.data.edges || []).map((r) => r.id);
+            setOriginalImportedIds({ views: viewIds, relations: relationIds });
+          }
 
-        await fetchData();
-        return response.data;
-      } catch (err) {
-        console.error("Error importing SQL:", err);
-        throw err;
-      }
+          await fetchData();
+          return response.data;
+        },
+        async () => {
+          const statements = sql
+            .split(";")
+            .map((stmt) => stmt.trim())
+            .filter(Boolean);
+
+          const nodes = [...views];
+          const edges = [...relations];
+          const errors = [];
+          let views_created = 0;
+          let relations_created = 0;
+
+          for (const statement of statements) {
+            if (
+              /Report_View/i.test(statement) &&
+              !/Report_ViewRelation/i.test(statement)
+            ) {
+              const parsed = parseViewInsert(statement);
+              if (!parsed) continue;
+
+              const exists = nodes.some((v) => v.view_id === parsed.view_id);
+              if (!exists) {
+                nodes.push(
+                  normalizeNode({
+                    view_id: parsed.view_id,
+                    name: parsed.name,
+                    name2: parsed.name2,
+                    alias: parsed.alias,
+                  }),
+                );
+                views_created += 1;
+              }
+              continue;
+            }
+
+            if (/Report_ViewRelation/i.test(statement)) {
+              const parsed = parseViewRelationInsert(statement);
+              if (!parsed) continue;
+
+              try {
+                [parsed.id_view1, parsed.id_view2].forEach((id) => {
+                  const exists = nodes.some((v) => v.view_id === id);
+                  if (!exists) {
+                    nodes.push(
+                      normalizeNode({
+                        view_id: id,
+                        name: `View_${id}`,
+                        name2: null,
+                        alias: null,
+                      }),
+                    );
+                    views_created += 1;
+                  }
+                });
+
+                const relationId =
+                  typeof crypto !== "undefined" && crypto.randomUUID
+                    ? crypto.randomUUID()
+                    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+                edges.push(
+                  normalizeEdge({
+                    id: relationId,
+                    source: String(parsed.id_view1),
+                    target: String(parsed.id_view2),
+                    relation: parsed.relation,
+                    relation2: parsed.relation2,
+                    edge_weight: parsed.edge_weight ?? 10,
+                  }),
+                );
+                relations_created += 1;
+              } catch (e) {
+                errors.push(`Error creating relation: ${String(e)}`);
+              }
+            }
+          }
+
+          if (isInitialImport) {
+            setLastImportedSql(sql);
+          }
+
+          applyGraphData(nodes, edges, "local");
+
+          if (isInitialImport) {
+            setOriginalImportedIds({
+              views: nodes.map((v) => v.view_id),
+              relations: edges.map((r) => r.id),
+            });
+          }
+
+          return { views_created, relations_created, errors };
+        },
+      );
     },
-    [fetchData],
+    [applyGraphData, fetchData, relations, runWithLocalFallback, views],
   );
 
   // Export view as SQL
@@ -515,143 +884,291 @@ export const AppProvider = ({ children }) => {
   // CRUD operations
   const createView = useCallback(
     async (viewData) => {
-      try {
-        await axios.post(`${API}/views`, viewData);
-        await fetchData();
-      } catch (err) {
-        console.error("Error creating view:", err);
-        throw err;
-      }
+      return runWithLocalFallback(
+        async () => {
+          await axios.post(`${API}/views`, viewData);
+          await fetchData();
+        },
+        async () => {
+          const numericViewId = Number(viewData.view_id);
+          if (!Number.isInteger(numericViewId)) {
+            throw new Error("View ID invàlid");
+          }
+
+          if (views.some((v) => v.view_id === numericViewId)) {
+            throw new Error("Ja existeix una vista amb aquest ID");
+          }
+
+          const newView = normalizeNode({
+            view_id: numericViewId,
+            name: viewData.name,
+            name2: viewData.name2 ?? null,
+            alias: viewData.alias ?? null,
+          });
+
+          applyGraphData([...views, newView], relations, "local");
+        },
+      );
     },
-    [fetchData],
+    [applyGraphData, fetchData, relations, runWithLocalFallback, views],
   );
 
   const updateView = useCallback(
     async (viewId, updateData) => {
-      try {
-        await axios.put(`${API}/views/${viewId}`, updateData);
-        await fetchData();
-      } catch (err) {
-        console.error("Error updating view:", err);
-        throw err;
-      }
+      return runWithLocalFallback(
+        async () => {
+          await axios.put(`${API}/views/${viewId}`, updateData);
+          await fetchData();
+        },
+        async () => {
+          const numericViewId = Number(viewId);
+          const existing = views.find((v) => v.view_id === numericViewId);
+          if (!existing) {
+            throw new Error("Vista no trobada");
+          }
+
+          const updatedViews = views.map((view) => {
+            if (view.view_id !== numericViewId) return view;
+            return normalizeNode({
+              ...view,
+              ...updateData,
+            });
+          });
+
+          applyGraphData(updatedViews, relations, "local");
+        },
+      );
     },
-    [fetchData],
+    [applyGraphData, fetchData, relations, runWithLocalFallback, views],
   );
 
   const deleteView = useCallback(
     async (viewId) => {
-      try {
-        await axios.delete(`${API}/views/${viewId}`);
-        if (selectedView?.view_id === viewId) {
-          setSelectedView(null);
-        }
-        await fetchData();
-      } catch (err) {
-        console.error("Error deleting view:", err);
-        throw err;
-      }
+      return runWithLocalFallback(
+        async () => {
+          await axios.delete(`${API}/views/${viewId}`);
+          if (selectedView?.view_id === viewId) {
+            setSelectedView(null);
+          }
+          await fetchData();
+        },
+        async () => {
+          const numericViewId = Number(viewId);
+          const node = views.find((v) => v.view_id === numericViewId);
+          if (!node) {
+            throw new Error("Vista no trobada");
+          }
+
+          const updatedViews = views.filter((v) => v.view_id !== numericViewId);
+          const updatedRelations = relations.filter(
+            (r) => r.source !== node.id && r.target !== node.id,
+          );
+
+          if (selectedView?.view_id === numericViewId) {
+            setSelectedView(null);
+          }
+
+          applyGraphData(updatedViews, updatedRelations, "local");
+        },
+      );
     },
-    [fetchData, selectedView],
+    [applyGraphData, fetchData, relations, runWithLocalFallback, selectedView, views],
   );
 
   const createRelation = useCallback(
     async (relationData) => {
-      try {
-        await axios.post(`${API}/relations`, relationData);
-        await fetchData();
-      } catch (err) {
-        console.error("Error creating relation:", err);
-        throw err;
-      }
+      return runWithLocalFallback(
+        async () => {
+          await axios.post(`${API}/relations`, relationData);
+          await fetchData();
+        },
+        async () => {
+          const idView1 = Number(relationData.id_view1);
+          const idView2 = Number(relationData.id_view2);
+
+          const sourceExists = views.some((v) => v.view_id === idView1);
+          const targetExists = views.some((v) => v.view_id === idView2);
+
+          if (!sourceExists || !targetExists) {
+            throw new Error("Una o més vistes no existeixen");
+          }
+
+          const relationId =
+            typeof crypto !== "undefined" && crypto.randomUUID
+              ? crypto.randomUUID()
+              : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+          const newRelation = normalizeEdge({
+            id: relationId,
+            source: String(idView1),
+            target: String(idView2),
+            relation: relationData.relation,
+            relation2: relationData.relation2 ?? null,
+            edge_weight: relationData.edge_weight ?? 10,
+          });
+
+          applyGraphData(views, [...relations, newRelation], "local");
+        },
+      );
     },
-    [fetchData],
+    [applyGraphData, fetchData, relations, runWithLocalFallback, views],
   );
 
   const updateRelation = useCallback(
     async (relationId, updateData) => {
-      try {
-        await axios.put(`${API}/relations/${relationId}`, updateData);
-        await fetchData();
-      } catch (err) {
-        console.error("Error updating relation:", err);
-        throw err;
-      }
+      return runWithLocalFallback(
+        async () => {
+          await axios.put(`${API}/relations/${relationId}`, updateData);
+          await fetchData();
+        },
+        async () => {
+          const exists = relations.some((r) => r.id === relationId);
+          if (!exists) {
+            throw new Error("Relació no trobada");
+          }
+
+          const updatedRelations = relations.map((relation) => {
+            if (relation.id !== relationId) return relation;
+            return normalizeEdge({
+              ...relation,
+              ...updateData,
+            });
+          });
+
+          applyGraphData(views, updatedRelations, "local");
+        },
+      );
     },
-    [fetchData],
+    [applyGraphData, fetchData, relations, runWithLocalFallback, views],
   );
 
   const deleteRelation = useCallback(
     async (relationId) => {
-      try {
-        await axios.delete(`${API}/relations/${relationId}`);
-        if (selectedRelation?.id === relationId) {
-          setSelectedRelation(null);
-        }
-        await fetchData();
-      } catch (err) {
-        console.error("Error deleting relation:", err);
-        throw err;
-      }
+      return runWithLocalFallback(
+        async () => {
+          await axios.delete(`${API}/relations/${relationId}`);
+          if (selectedRelation?.id === relationId) {
+            setSelectedRelation(null);
+          }
+          await fetchData();
+        },
+        async () => {
+          const updatedRelations = relations.filter((r) => r.id !== relationId);
+          if (updatedRelations.length === relations.length) {
+            throw new Error("Relació no trobada");
+          }
+
+          if (selectedRelation?.id === relationId) {
+            setSelectedRelation(null);
+          }
+
+          applyGraphData(views, updatedRelations, "local");
+        },
+      );
     },
-    [fetchData, selectedRelation],
+    [applyGraphData, fetchData, relations, runWithLocalFallback, selectedRelation, views],
   );
 
   const clearAllData = useCallback(async () => {
-    try {
-      await axios.delete(`${API}/clear-all`);
-      setSelectedView(null);
-      setSelectedRelation(null);
-      clearPathfinding();
-      clearConnectionMode();
-      clearFilters();
-      setOriginalImportedIds({ views: [], relations: [] });
-      setLastImportedSql("");
-      await fetchData();
-    } catch (err) {
-      console.error("Error clearing data:", err);
-      throw err;
-    }
-  }, [fetchData, clearPathfinding, clearConnectionMode, clearFilters]);
+    return runWithLocalFallback(
+      async () => {
+        await axios.delete(`${API}/clear-all`);
+        setSelectedView(null);
+        setSelectedRelation(null);
+        clearPathfinding();
+        clearConnectionMode();
+        clearFilters();
+        setOriginalImportedIds({ views: [], relations: [] });
+        setLastImportedSql("");
+        await fetchData();
+      },
+      async () => {
+        setSelectedView(null);
+        setSelectedRelation(null);
+        clearPathfinding();
+        clearConnectionMode();
+        clearFilters();
+        setOriginalImportedIds({ views: [], relations: [] });
+        setLastImportedSql("");
+        applyGraphData([], [], "local");
+      },
+    );
+  }, [
+    applyGraphData,
+    clearConnectionMode,
+    clearFilters,
+    clearPathfinding,
+    fetchData,
+    runWithLocalFallback,
+  ]);
 
   // Get new views and relations
   const newViews = views.filter((v) => isNewView(v.view_id));
   const newRelations = relations.filter((r) => isNewRelation(r.id));
 
   const clearNewItems = useCallback(async () => {
-    try {
-      const deletePromises = [];
+    return runWithLocalFallback(
+      async () => {
+        const deletePromises = [];
 
-      newRelations.forEach((rel) => {
-        deletePromises.push(axios.delete(`${API}/relations/${rel.id}`));
-      });
+        newRelations.forEach((rel) => {
+          deletePromises.push(axios.delete(`${API}/relations/${rel.id}`));
+        });
 
-      newViews.forEach((view) => {
-        deletePromises.push(axios.delete(`${API}/views/${view.view_id}`));
-      });
+        newViews.forEach((view) => {
+          deletePromises.push(axios.delete(`${API}/views/${view.view_id}`));
+        });
 
-      await Promise.all(deletePromises);
+        await Promise.all(deletePromises);
 
-      if (selectedView && isNewView(selectedView.view_id)) {
-        setSelectedView(null);
-      }
-      if (selectedRelation && isNewRelation(selectedRelation.id)) {
-        setSelectedRelation(null);
-      }
+        if (selectedView && isNewView(selectedView.view_id)) {
+          setSelectedView(null);
+        }
+        if (selectedRelation && isNewRelation(selectedRelation.id)) {
+          setSelectedRelation(null);
+        }
 
-      await fetchData();
-    } catch (err) {
-      console.error("Error clearing new items:", err);
-      throw err;
-    }
+        await fetchData();
+      },
+      async () => {
+        const newViewIdSet = new Set(newViews.map((v) => v.view_id));
+        const newRelationIdSet = new Set(newRelations.map((r) => r.id));
+
+        const updatedViews = views.filter((v) => !newViewIdSet.has(v.view_id));
+        const removedNodeIds = new Set(
+          views
+            .filter((v) => newViewIdSet.has(v.view_id))
+            .map((v) => String(v.id)),
+        );
+        const updatedRelations = relations.filter(
+          (r) =>
+            !newRelationIdSet.has(r.id) &&
+            !removedNodeIds.has(r.source) &&
+            !removedNodeIds.has(r.target),
+        );
+
+        if (selectedView && isNewView(selectedView.view_id)) {
+          setSelectedView(null);
+        }
+        if (selectedRelation && isNewRelation(selectedRelation.id)) {
+          setSelectedRelation(null);
+        }
+
+        applyGraphData(updatedViews, updatedRelations, "local");
+      },
+    );
   }, [
+    applyGraphData,
+    isNewRelation,
+    isNewView,
+    fetchData,
+    relations,
+    runWithLocalFallback,
     newViews,
     newRelations,
-    fetchData,
     selectedView,
     selectedRelation,
-    isNewView,
-    isNewRelation,
+    views,
   ]);
 
   // Filter views based on search and hidden
@@ -719,6 +1236,8 @@ export const AppProvider = ({ children }) => {
     error,
     stats,
     lastImportedSql,
+    dataSource,
+    appVersion: APP_VERSION,
 
     // Selection
     selectedView,

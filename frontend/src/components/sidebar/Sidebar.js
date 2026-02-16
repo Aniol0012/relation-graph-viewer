@@ -45,6 +45,8 @@ export const Sidebar = () => {
     toggleViewForFilter,
     applyFilter,
     clearFilters,
+    dataSource,
+    appVersion,
   } = useApp();
 
   const handleViewClick = (view) => {
@@ -90,7 +92,9 @@ export const Sidebar = () => {
             <h1 className="font-heading font-semibold text-lg">
               Relation Graph
             </h1>
-            <p className="text-xs text-muted-foreground">Viewer</p>
+            <p className="text-xs text-muted-foreground">
+              Viewer {appVersion}
+            </p>
           </div>
         </div>
 
@@ -121,6 +125,15 @@ export const Sidebar = () => {
               <span>{newViews.length + newRelations.length} nous</span>
             </div>
           )}
+          <div
+            className={`stats-badge ${
+              dataSource === "local"
+                ? "bg-orange-500/20 text-orange-500"
+                : "bg-green-500/20 text-green-500"
+            }`}
+          >
+            <span>{dataSource === "local" ? "Mode local" : "Mode servidor"}</span>
+          </div>
           {hiddenViews.size > 0 && (
             <div className="stats-badge bg-muted text-muted-foreground">
               <EyeOff className="w-3 h-3" />
