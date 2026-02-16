@@ -46,6 +46,7 @@ export const Sidebar = () => {
     applyFilter,
     clearFilters,
     dataSource,
+    appName,
     appVersion,
   } = useApp();
 
@@ -90,11 +91,9 @@ export const Sidebar = () => {
           </div>
           <div>
             <h1 className="font-heading font-semibold text-lg">
-              Relation Graph
+              {appName}
             </h1>
-            <p className="text-xs text-muted-foreground">
-              Viewer {appVersion}
-            </p>
+            <p className="text-xs text-muted-foreground">{appVersion}</p>
           </div>
         </div>
 
@@ -110,7 +109,7 @@ export const Sidebar = () => {
         </a>
 
         {/* Stats */}
-        <div className="flex gap-2 mb-4 flex-wrap">
+        <div className="flex gap-2 mb-2 flex-wrap">
           <div className="stats-badge">
             <Box className="w-3 h-3" />
             <span>{stats.views_count} vistes</span>
@@ -134,13 +133,15 @@ export const Sidebar = () => {
           >
             <span>{dataSource === "local" ? "Mode local" : "Mode servidor"}</span>
           </div>
-          {hiddenViews.size > 0 && (
+        </div>
+        {hiddenViews.size > 0 && (
+          <div className="flex gap-2 mb-4 flex-wrap">
             <div className="stats-badge bg-muted text-muted-foreground">
               <EyeOff className="w-3 h-3" />
               <span>{hiddenViews.size} ocultes</span>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Filter mode indicator */}
         {filterMode && (

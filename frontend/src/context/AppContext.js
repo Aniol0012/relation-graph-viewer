@@ -7,6 +7,7 @@ import React, {
   useRef,
 } from "react";
 import axios from "axios";
+import { APP_NAME, APP_VERSION } from "../config/appInfo";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL?.trim();
 const HAS_BACKEND_CONFIG =
@@ -15,7 +16,6 @@ const HAS_BACKEND_CONFIG =
   BACKEND_URL !== "null";
 const API = HAS_BACKEND_CONFIG ? `${BACKEND_URL}/api` : null;
 const LOCAL_GRAPH_DATA_KEY = "dbgraph_graph_data";
-const APP_VERSION = "v1.1.0";
 
 const AppContext = createContext(null);
 
@@ -45,6 +45,8 @@ const defaultSettings = {
 
   // Edges
   edgeStyle: "smoothstep",
+  edgePathOffset: 20,
+  separateParallelEdges: true,
   showEdgeLabels: true,
   animatedEdges: false,
 
@@ -1237,6 +1239,7 @@ export const AppProvider = ({ children }) => {
     stats,
     lastImportedSql,
     dataSource,
+    appName: APP_NAME,
     appVersion: APP_VERSION,
 
     // Selection

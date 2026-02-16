@@ -18,6 +18,17 @@ const nodeTypes = {
   custom: CustomNode,
 };
 
+const getClosestSide = (fromPosition, toPosition) => {
+  const dx = toPosition.x - fromPosition.x;
+  const dy = toPosition.y - fromPosition.y;
+
+  if (Math.abs(dx) > Math.abs(dy)) {
+    return dx >= 0 ? "right" : "left";
+  }
+
+  return dy >= 0 ? "bottom" : "top";
+};
+
 // Layout algorithm with direction support
 const calculateLayout = (
   nodes,
@@ -177,41 +188,119 @@ export const GraphCanvas = () => {
     }));
   }, [visibleViews]);
 
+  const layoutInputEdges = useMemo(() => {
+    return visibleRelations.map((rel) => ({
+      id: rel.id,
+      source: rel.source,
+      target: rel.target,
+    }));
+  }, [visibleRelations]);
+
+  // Apply layout first so we can route edges to the nearest side of nodes
+  const layoutedNodes = useMemo(() => {
+    return calculateLayout(
+      initialNodes,
+      layoutInputEdges,
+      settings.layoutDirection,
+      settings.nodeSpacing,
+      settings.levelSpacing,
+    );
+  }, [
+    initialNodes,
+    layoutInputEdges,
+    settings.layoutDirection,
+    settings.nodeSpacing,
+    settings.levelSpacing,
+  ]);
+
+  const nodePositionMap = useMemo(() => {
+    return new Map(layoutedNodes.map((node) => [node.id, node.position]));
+  }, [layoutedNodes]);
+
   const initialEdges = useMemo(() => {
+    const byDirectedPair = new Map();
+    const bySource = new Map();
+
+    visibleRelations.forEach((rel) => {
+      const pairKey = `${rel.source}->${rel.target}`;
+      const pairEdges = byDirectedPair.get(pairKey) || [];
+      pairEdges.push(rel.id);
+      byDirectedPair.set(pairKey, pairEdges);
+
+      const sourceEdges = bySource.get(rel.source) || [];
+      sourceEdges.push(rel.id);
+      bySource.set(rel.source, sourceEdges);
+    });
+
     return visibleRelations.map((rel) => {
       const joinType = getJoinType(rel.relation);
       const color = getJoinColor(rel.relation);
       const isInPath = foundPath?.edges?.includes(rel.id);
       const isNew = isNewRelation(rel.id);
+      const pairKey = `${rel.source}->${rel.target}`;
+      const pairEdges = byDirectedPair.get(pairKey) || [];
+      const sourceEdges = bySource.get(rel.source) || [];
+      const sourcePosition = nodePositionMap.get(rel.source);
+      const targetPosition = nodePositionMap.get(rel.target);
+
+      const duplicateIndex = pairEdges.indexOf(rel.id);
+      const sourceIndex = sourceEdges.indexOf(rel.id);
+      const duplicateSpread = pairEdges.length > 1 ? duplicateIndex * 6 : 0;
+      const sourceSpread = sourceEdges.length > 2 ? (sourceIndex % 3) * 4 : 0;
+      const smoothStepOffset =
+        12 +
+        Math.round(settings.edgePathOffset * 0.25) +
+        duplicateSpread +
+        sourceSpread;
+      const usePathSeparation =
+        settings.separateParallelEdges && settings.edgeStyle === "smoothstep";
+      const sourceSide =
+        sourcePosition && targetPosition
+          ? getClosestSide(sourcePosition, targetPosition)
+          : "bottom";
+      const targetSide =
+        sourcePosition && targetPosition
+          ? getClosestSide(targetPosition, sourcePosition)
+          : "top";
 
       return {
         id: rel.id,
         source: rel.source,
         target: rel.target,
+        sourceHandle: `source-${sourceSide}`,
+        targetHandle: `target-${targetSide}`,
         data: rel,
         animated: settings.animatedEdges || isInPath,
         type: settings.edgeStyle,
+        pathOptions: usePathSeparation
+          ? {
+              offset: smoothStepOffset,
+              borderRadius: 8,
+            }
+          : undefined,
         style: {
           stroke: isInPath ? "#10B981" : color,
-          strokeWidth: isInPath ? 3 : 2,
+          strokeWidth: isInPath ? 2.6 : 1.8,
+          strokeLinecap: "round",
+          strokeLinejoin: "round",
           strokeDasharray: isNew ? "5,5" : undefined,
         },
         markerEnd: {
           type: MarkerType.ArrowClosed,
           color: isInPath ? "#10B981" : color,
-          width: 20,
-          height: 20,
+          width: isInPath ? 14 : 12,
+          height: isInPath ? 14 : 12,
         },
         label: settings.showEdgeLabels ? joinType : "",
         labelStyle: {
-          fontSize: 9,
-          fontWeight: 600,
+          fontSize: 8,
+          fontWeight: 500,
           fill: isInPath ? "#10B981" : color,
           textTransform: "uppercase",
         },
         labelBgStyle: {
           fill: "hsl(var(--background))",
-          fillOpacity: 0.9,
+          fillOpacity: settings.separateParallelEdges ? 0.98 : 0.9,
         },
         labelBgPadding: [4, 2],
       };
@@ -223,23 +312,7 @@ export const GraphCanvas = () => {
     getJoinColor,
     foundPath,
     isNewRelation,
-  ]);
-
-  // Apply layout
-  const layoutedNodes = useMemo(() => {
-    return calculateLayout(
-      initialNodes,
-      initialEdges,
-      settings.layoutDirection,
-      settings.nodeSpacing,
-      settings.levelSpacing,
-    );
-  }, [
-    initialNodes,
-    initialEdges,
-    settings.layoutDirection,
-    settings.nodeSpacing,
-    settings.levelSpacing,
+    nodePositionMap,
   ]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(layoutedNodes);

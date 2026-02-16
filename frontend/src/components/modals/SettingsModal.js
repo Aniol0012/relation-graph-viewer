@@ -258,6 +258,40 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                     </SelectContent>
                   </Select>
                 </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Separar arestes paral·leles</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Evita que les fletxes quedin superposades
+                    </p>
+                  </div>
+                  <Switch
+                    checked={localSettings.separateParallelEdges}
+                    onCheckedChange={(checked) =>
+                      handleImmediateChange("separateParallelEdges", checked)
+                    }
+                    data-testid="toggle-separate-parallel-edges"
+                  />
+                </div>
+
+                <div>
+                  <Label>Separació de ruta d'arestes</Label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    {localSettings.edgePathOffset}px
+                  </p>
+                  <Slider
+                    value={[localSettings.edgePathOffset]}
+                    onValueChange={([val]) =>
+                      handleLocalChange("edgePathOffset", val)
+                    }
+                    min={12}
+                    max={80}
+                    step={2}
+                    disabled={!localSettings.separateParallelEdges}
+                    data-testid="slider-edge-path-offset"
+                  />
+                </div>
               </div>
 
               <div className="space-y-4 pt-4 border-t">

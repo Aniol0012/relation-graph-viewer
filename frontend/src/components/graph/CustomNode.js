@@ -77,6 +77,13 @@ export const CustomNode = memo(({ data, selected }) => {
     borderColor = "hsl(var(--accent))";
   }
 
+  const handlePositions = [
+    { id: "top", position: Position.Top },
+    { id: "right", position: Position.Right },
+    { id: "bottom", position: Position.Bottom },
+    { id: "left", position: Position.Left },
+  ];
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -102,12 +109,16 @@ export const CustomNode = memo(({ data, selected }) => {
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
-          <Handle
-            type="target"
-            position={Position.Top}
-            className="node-handle-invisible"
-            isConnectable={true}
-          />
+          {handlePositions.map(({ id, position }) => (
+            <Handle
+              key={`target-${id}`}
+              id={`target-${id}`}
+              type="target"
+              position={position}
+              className="node-handle-invisible"
+              isConnectable={true}
+            />
+          ))}
 
           {(isHovered || isConnectionSource) && !pathfindingMode && (
             <button
@@ -163,12 +174,16 @@ export const CustomNode = memo(({ data, selected }) => {
             </div>
           )}
 
-          <Handle
-            type="source"
-            position={Position.Top}
-            className="node-handle-invisible"
-            isConnectable={true}
-          />
+          {handlePositions.map(({ id, position }) => (
+            <Handle
+              key={`source-${id}`}
+              id={`source-${id}`}
+              type="source"
+              position={position}
+              className="node-handle-invisible"
+              isConnectable={true}
+            />
+          ))}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
