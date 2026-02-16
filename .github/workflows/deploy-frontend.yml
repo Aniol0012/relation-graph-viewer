@@ -25,6 +25,7 @@ jobs:
       - name: Build
         working-directory: ./frontend
         env:
+          PUBLIC_URL: /relation-graph-viewer
           REACT_APP_BACKEND_URL: ${{ secrets.BACKEND_URL }}
         run: npm run build
 
