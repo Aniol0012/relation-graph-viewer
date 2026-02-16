@@ -616,6 +616,33 @@ export const AppProvider = ({ children }) => {
     fetchData();
   }, [fetchData]);
 
+  // Keep selected entities in sync with refreshed graph data.
+  useEffect(() => {
+    if (!selectedView) return;
+    const syncedView = views.find((view) => view.id === selectedView.id);
+    if (!syncedView) {
+      setSelectedView(null);
+      return;
+    }
+    if (syncedView !== selectedView) {
+      setSelectedView(syncedView);
+    }
+  }, [views, selectedView]);
+
+  useEffect(() => {
+    if (!selectedRelation) return;
+    const syncedRelation = relations.find(
+      (relation) => relation.id === selectedRelation.id,
+    );
+    if (!syncedRelation) {
+      setSelectedRelation(null);
+      return;
+    }
+    if (syncedRelation !== selectedRelation) {
+      setSelectedRelation(syncedRelation);
+    }
+  }, [relations, selectedRelation]);
+
   // Pathfinding - BFS
   const findPath = useCallback(
     (startId, endId) => {

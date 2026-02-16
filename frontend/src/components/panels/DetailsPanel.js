@@ -110,7 +110,13 @@ export const DetailsPanel = () => {
   const handleSave = async () => {
     try {
       if (selectedView) {
-        await updateView(selectedView.view_id, editData);
+        const minVersion = Number(editData.min_app_version);
+        const maxVersion = Number(editData.max_app_version);
+        await updateView(selectedView.view_id, {
+          ...editData,
+          min_app_version: Number.isInteger(minVersion) ? minVersion : 0,
+          max_app_version: Number.isInteger(maxVersion) ? maxVersion : 999999,
+        });
         toast.success("Vista actualitzada correctament");
       } else if (selectedRelation) {
         await updateRelation(selectedRelation.id, editData);
