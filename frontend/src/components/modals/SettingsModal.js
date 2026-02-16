@@ -24,7 +24,8 @@ import { Settings, Palette, Layout, Eye, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 export const SettingsModal = ({ open, onOpenChange }) => {
-  const { settings, updateSettings, resetSettings, defaultSettings } = useApp();
+  const { settings, updateSettings, resetSettings, defaultSettings, dataSource } =
+    useApp();
 
   const [localSettings, setLocalSettings] = useState({ ...settings });
 
@@ -313,6 +314,28 @@ export const SettingsModal = ({ open, onOpenChange }) => {
                   </Select>
                 </div>
               </div>
+
+              {dataSource === "local" && (
+                <div className="space-y-4 pt-4 border-t">
+                  <h4 className="font-medium text-sm">Mode Local</h4>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Mostrar ús d'espai local</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Mostra una barra amb l'espai consumit al localStorage
+                      </p>
+                    </div>
+                    <Switch
+                      checked={Boolean(localSettings.showLocalStorageUsage)}
+                      onCheckedChange={(checked) =>
+                        handleImmediateChange("showLocalStorageUsage", checked)
+                      }
+                      data-testid="toggle-local-storage-usage"
+                    />
+                  </div>
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="colors" className="space-y-4 mt-0">

@@ -6,6 +6,7 @@ import { GraphCanvas } from "./components/graph/GraphCanvas";
 import { DetailsPanel } from "./components/panels/DetailsPanel";
 import { Toolbar } from "./components/toolbar/Toolbar";
 import { Toaster } from "./components/ui/sonner";
+import { LocalStorageUsageBadge } from "./components/indicators/LocalStorageUsageBadge";
 
 const MainApp = () => {
   return (
@@ -16,15 +17,22 @@ const MainApp = () => {
       {/* Main Graph Area */}
       <div className="graph-canvas" data-testid="graph-canvas">
         <Toolbar />
+        <LocalStorageUsageBadge />
         <GraphCanvas />
         <DetailsPanel />
       </div>
 
       {/* Toast notifications */}
       <Toaster
-        position="bottom-right"
+        position="top-left"
+        offset={{ top: 16, left: 296 }}
+        expand
+        richColors
+        closeButton
+        visibleToasts={2}
         toastOptions={{
-          className: "font-sans",
+          className: "font-sans toast-card toast-compact",
+          duration: 2600,
         }}
       />
     </div>

@@ -52,6 +52,7 @@ const defaultSettings = {
 
   // Theme
   theme: "light",
+  showLocalStorageUsage: false,
 
   // Details panel width
   detailsPanelWidth: 380,
