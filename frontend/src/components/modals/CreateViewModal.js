@@ -21,6 +21,8 @@ export const CreateViewModal = ({ open, onOpenChange }) => {
     name: "",
     name2: "",
     alias: "",
+    min_app_version: "0",
+    max_app_version: "999999",
   });
 
   // Auto-suggest next ID when modal opens
@@ -49,6 +51,8 @@ export const CreateViewModal = ({ open, onOpenChange }) => {
         name: formData.name,
         name2: formData.name2 || null,
         alias: formData.alias || null,
+        min_app_version: parseInt(formData.min_app_version || "0", 10),
+        max_app_version: parseInt(formData.max_app_version || "999999", 10),
       });
       toast.success("Vista creada correctament");
       handleClose();
@@ -60,7 +64,14 @@ export const CreateViewModal = ({ open, onOpenChange }) => {
   };
 
   const handleClose = () => {
-    setFormData({ view_id: "", name: "", name2: "", alias: "" });
+    setFormData({
+      view_id: "",
+      name: "",
+      name2: "",
+      alias: "",
+      min_app_version: "0",
+      max_app_version: "999999",
+    });
     onOpenChange(false);
   };
 
@@ -154,6 +165,35 @@ export const CreateViewModal = ({ open, onOpenChange }) => {
             <p className="text-xs text-muted-foreground mt-1">
               L'alias es mostrarà al graf si està definit
             </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="min_app_version">MinAppVersion</Label>
+              <Input
+                id="min_app_version"
+                type="number"
+                value={formData.min_app_version}
+                onChange={(e) =>
+                  setFormData({ ...formData, min_app_version: e.target.value })
+                }
+                className="mt-1"
+                data-testid="create-view-min-version-input"
+              />
+            </div>
+            <div>
+              <Label htmlFor="max_app_version">MaxAppVersion</Label>
+              <Input
+                id="max_app_version"
+                type="number"
+                value={formData.max_app_version}
+                onChange={(e) =>
+                  setFormData({ ...formData, max_app_version: e.target.value })
+                }
+                className="mt-1"
+                data-testid="create-view-max-version-input"
+              />
+            </div>
           </div>
 
           <div className="flex gap-2 pt-4">

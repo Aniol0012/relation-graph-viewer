@@ -51,7 +51,7 @@ const defaultSettings = {
   animatedEdges: false,
 
   // Theme
-  theme: "dark",
+  theme: "light",
 
   // Details panel width
   detailsPanelWidth: 380,
@@ -68,6 +68,11 @@ const safeParse = (value, fallback) => {
 const buildDisplayName = (view) =>
   view?.alias || view?.name || `View_${view?.view_id}`;
 
+const toIntOrDefault = (value, defaultValue) => {
+  const numericValue = Number(value);
+  return Number.isInteger(numericValue) ? numericValue : defaultValue;
+};
+
 const normalizeNode = (view) => ({
   ...view,
   id: String(view.id ?? view.view_id),
@@ -75,6 +80,8 @@ const normalizeNode = (view) => ({
   name: view.name || "",
   name2: view.name2 ?? null,
   alias: view.alias ?? null,
+  min_app_version: toIntOrDefault(view.min_app_version, 0),
+  max_app_version: toIntOrDefault(view.max_app_version, 999999),
   display_name: buildDisplayName(view),
 });
 
@@ -159,7 +166,14 @@ const parseViewInsert = (sql) => {
     name: "name",
     name2: "name2",
     alias: "alias",
+    minappversion: "min_app_version",
+    maxappversion: "max_app_version",
   };
+  const numericFields = new Set([
+    "view_id",
+    "min_app_version",
+    "max_app_version",
+  ]);
 
   const result = {};
   columns.forEach((col, index) => {
@@ -167,15 +181,25 @@ const parseViewInsert = (sql) => {
     if (!mapped) return;
 
     let value = cleanSqlValue(values[index]);
-    if (mapped === "view_id") {
+    if (numericFields.has(mapped)) {
       value = Number(value);
-      if (!Number.isInteger(value)) return;
+      if (!Number.isInteger(value)) {
+        if (mapped === "view_id") return;
+        value = null;
+      }
     }
     result[mapped] = value;
   });
 
   if (!Number.isInteger(result.view_id) || !result.name) {
     return null;
+  }
+
+  if (result.min_app_version == null) {
+    result.min_app_version = 0;
+  }
+  if (result.max_app_version == null) {
+    result.max_app_version = 999999;
   }
 
   return result;
@@ -773,6 +797,8 @@ export const AppProvider = ({ children }) => {
                     name: parsed.name,
                     name2: parsed.name2,
                     alias: parsed.alias,
+                    min_app_version: parsed.min_app_version,
+                    max_app_version: parsed.max_app_version,
                   }),
                 );
                 views_created += 1;
@@ -794,6 +820,8 @@ export const AppProvider = ({ children }) => {
                         name: `View_${id}`,
                         name2: null,
                         alias: null,
+                        min_app_version: 0,
+                        max_app_version: 999999,
                       }),
                     );
                     views_created += 1;
@@ -847,11 +875,13 @@ export const AppProvider = ({ children }) => {
     const name = view.name ? `'${view.name.replace(/'/g, "''")}'` : "NULL";
     const name2 = view.name2 ? `'${view.name2.replace(/'/g, "''")}'` : "NULL";
     const alias = view.alias ? `'${view.alias.replace(/'/g, "''")}'` : "NULL";
+    const minAppVersion = toIntOrDefault(view.min_app_version, 0);
+    const maxAppVersion = toIntOrDefault(view.max_app_version, 999999);
 
     if (type === "INSERT") {
-      return `INSERT INTO Report_View (IdView, Name, Name2, Alias) VALUES(${view.view_id}, ${name}, ${name2}, ${alias});`;
+      return `INSERT INTO Report_View (IdView, Name, Name2, Alias, MinAppVersion, MaxAppVersion) VALUES(${view.view_id}, ${name}, ${name2}, ${alias}, ${minAppVersion}, ${maxAppVersion});`;
     } else {
-      return `UPDATE Report_View SET Name = ${name}, Name2 = ${name2}, Alias = ${alias} WHERE IdView = ${view.view_id};`;
+      return `UPDATE Report_View SET Name = ${name}, Name2 = ${name2}, Alias = ${alias}, MinAppVersion = ${minAppVersion}, MaxAppVersion = ${maxAppVersion} WHERE IdView = ${view.view_id};`;
     }
   }, []);
 
@@ -906,6 +936,8 @@ export const AppProvider = ({ children }) => {
             name: viewData.name,
             name2: viewData.name2 ?? null,
             alias: viewData.alias ?? null,
+            min_app_version: toIntOrDefault(viewData.min_app_version, 0),
+            max_app_version: toIntOrDefault(viewData.max_app_version, 999999),
           });
 
           applyGraphData([...views, newView], relations, "local");
@@ -931,9 +963,22 @@ export const AppProvider = ({ children }) => {
 
           const updatedViews = views.map((view) => {
             if (view.view_id !== numericViewId) return view;
+            const normalizedUpdateData = { ...updateData };
+            if (Object.prototype.hasOwnProperty.call(updateData, "min_app_version")) {
+              normalizedUpdateData.min_app_version = toIntOrDefault(
+                updateData.min_app_version,
+                0,
+              );
+            }
+            if (Object.prototype.hasOwnProperty.call(updateData, "max_app_version")) {
+              normalizedUpdateData.max_app_version = toIntOrDefault(
+                updateData.max_app_version,
+                999999,
+              );
+            }
             return normalizeNode({
               ...view,
-              ...updateData,
+              ...normalizedUpdateData,
             });
           });
 

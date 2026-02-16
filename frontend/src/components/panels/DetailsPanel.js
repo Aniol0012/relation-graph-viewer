@@ -94,6 +94,8 @@ export const DetailsPanel = () => {
         name: selectedView.name || "",
         name2: selectedView.name2 || "",
         alias: selectedView.alias || "",
+        min_app_version: selectedView.min_app_version ?? 0,
+        max_app_version: selectedView.max_app_version ?? 999999,
       });
     } else if (selectedRelation) {
       setEditData({
@@ -314,6 +316,40 @@ export const DetailsPanel = () => {
                     data-testid="edit-alias-input"
                   />
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="min_app_version">MinAppVersion</Label>
+                    <Input
+                      id="min_app_version"
+                      type="number"
+                      value={editData.min_app_version}
+                      onChange={(e) =>
+                        setEditData({
+                          ...editData,
+                          min_app_version: e.target.value,
+                        })
+                      }
+                      className="mt-1 font-mono"
+                      data-testid="edit-min-version-input"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="max_app_version">MaxAppVersion</Label>
+                    <Input
+                      id="max_app_version"
+                      type="number"
+                      value={editData.max_app_version}
+                      onChange={(e) =>
+                        setEditData({
+                          ...editData,
+                          max_app_version: e.target.value,
+                        })
+                      }
+                      className="mt-1 font-mono"
+                      data-testid="edit-max-version-input"
+                    />
+                  </div>
+                </div>
               </>
             ) : (
               <>
@@ -340,6 +376,24 @@ export const DetailsPanel = () => {
                 <div>
                   <Label className="text-muted-foreground">Alias</Label>
                   <div className="mt-1">{selectedView.alias || "-"}</div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-muted-foreground">
+                      MinAppVersion
+                    </Label>
+                    <div className="mt-1 font-mono">
+                      {selectedView.min_app_version ?? 0}
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">
+                      MaxAppVersion
+                    </Label>
+                    <div className="mt-1 font-mono">
+                      {selectedView.max_app_version ?? 999999}
+                    </div>
+                  </div>
                 </div>
               </>
             )}

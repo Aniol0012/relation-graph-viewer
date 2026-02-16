@@ -256,7 +256,8 @@ export const Sidebar = () => {
             </div>
           ) : (
             (filterMode ? views : filteredViews).map((view) => {
-              const isInPath = foundPath?.nodes?.includes(view.id);
+              const pathStepIndex = foundPath?.nodes?.indexOf(view.id) ?? -1;
+              const isInPath = pathStepIndex >= 0;
               const isPathStart = pathStart === view.id;
               const isPathEnd = pathEnd === view.id;
               const isNew = isNewView(view.view_id);
@@ -319,6 +320,14 @@ export const Sidebar = () => {
                         className="text-[10px] px-1 py-0 bg-blue-500/20 text-blue-500 border-blue-500/30"
                       >
                         FI
+                      </Badge>
+                    )}
+                    {isInPath && (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] px-1 py-0 bg-emerald-500/20 text-emerald-500 border-emerald-500/30"
+                      >
+                        PAS {pathStepIndex + 1}
                       </Badge>
                     )}
                   </div>

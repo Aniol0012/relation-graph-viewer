@@ -34,6 +34,8 @@ class View(BaseModel):
     name: str
     name2: Optional[str] = None
     alias: Optional[str] = None
+    min_app_version: int = 0
+    max_app_version: int = 999999
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class ViewCreate(BaseModel):
@@ -41,11 +43,15 @@ class ViewCreate(BaseModel):
     name: str
     name2: Optional[str] = None
     alias: Optional[str] = None
+    min_app_version: int = 0
+    max_app_version: int = 999999
 
 class ViewUpdate(BaseModel):
     name: Optional[str] = None
     name2: Optional[str] = None
     alias: Optional[str] = None
+    min_app_version: Optional[int] = None
+    max_app_version: Optional[int] = None
 
 class ViewRelation(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -123,7 +129,9 @@ def parse_view_insert(sql: str) -> Optional[dict]:
         'viewid': 'view_id',
         'name': 'name',
         'name2': 'name2',
-        'alias': 'alias'
+        'alias': 'alias',
+        'minappversion': 'min_app_version',
+        'maxappversion': 'max_app_version'
     }
     
     for i, col in enumerate(columns):
@@ -133,12 +141,19 @@ def parse_view_insert(sql: str) -> Optional[dict]:
                 val = values[i].strip("'\"")
                 if val.upper() == 'NULL':
                     val = None
-                elif mapped_col == 'view_id':
+                elif mapped_col in ('view_id', 'min_app_version', 'max_app_version'):
                     try:
                         val = int(val)
                     except:
-                        continue
+                        if mapped_col == 'view_id':
+                            continue
+                        val = None
                 data[mapped_col] = val
+
+    if data.get('min_app_version') is None:
+        data['min_app_version'] = 0
+    if data.get('max_app_version') is None:
+        data['max_app_version'] = 999999
     
     return data if 'view_id' in data and 'name' in data else None
 
@@ -456,6 +471,8 @@ async def get_graph_data():
             "name": v.get('name', ''),
             "name2": v.get('name2'),
             "alias": v.get('alias'),
+            "min_app_version": v.get('min_app_version', 0),
+            "max_app_version": v.get('max_app_version', 999999),
             "display_name": display_name
         })
     
